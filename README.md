@@ -35,9 +35,10 @@ true
 
     isprime(x::BigInt, [reps = 25]) -> Bool
 
-> Probabilistic primality test. Returns `true` if `x` is prime; and `false` if `x` is not
-prime with high probability. The false positive rate is about `0.25^reps`. `reps = 25` is
-considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
+> Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
+and `false` if `x` is composite (not prime). The false positive rate is about `0.25^reps`.
+`reps = 25` is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
+
 > ```julia
 julia> isprime(big(3))
 true
