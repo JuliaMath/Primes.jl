@@ -182,6 +182,10 @@ for n = 1:100
     @test n == m
 end
 
+let i = rand(1:2^(3*min(WORD_SIZE,64)÷4)) 
+    @test primes(i,i+300) == filter(isprime, i:i + 300) == filter(isprime, big(i:i + 300))
+end
+
 
 @test isprime(BigInt(1000000007))
 @test isprime(BigInt(1000000007), 1)
