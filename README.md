@@ -8,6 +8,8 @@
 
 Julia functions for computing prime numbers.
 
+## Usage
+
 At the moment, this repository just contains the following functions which have been duplicated from Base Julia:
 
     factor(n) -> Dict
@@ -50,4 +52,7 @@ true
 > Returns a prime sieve, as a `BitArray`, of the positive integers (from `lo`, if specified)
 up to `hi`. Useful when working with either primes or composite numbers.
 
-None of these are currently exported, so need to be explicitly imported before use.
+To avoid naming conflicts with Base, these are not exported for Julia version 0.4. In this case you will need to explicitly import the symbols:
+
+    using Primes
+    import Primes: isprime, primes, primesmask, factor

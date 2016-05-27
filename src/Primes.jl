@@ -1,6 +1,14 @@
 __precompile__()
 module Primes
 
+if VERSION >= v"0.5.0-dev+4340"
+    if isdefined(Base,:isprime)
+        import Base: isprime, primes, primesmask, factor
+    else
+        export isprime, primes, primesmask, factor
+    end
+end
+
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
 #     https://en.wikipedia.org/wiki/Wheel_factorization
