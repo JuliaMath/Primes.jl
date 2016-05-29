@@ -1,4 +1,13 @@
-# This file is a part of Julia. License is MIT: http://julialang.org/license
+__precompile__()
+module Primes
+
+if VERSION >= v"0.5.0-dev+4340"
+    if isdefined(Base,:isprime)
+        import Base: isprime, primes, primesmask, factor
+    else
+        export isprime, primes, primesmask, factor
+    end
+end
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
@@ -9,8 +18,14 @@ const wheel         = [4,  2,  4,  2,  4,  6,  2,  6]
 const wheel_primes  = [7, 11, 13, 17, 19, 23, 29, 31]
 const wheel_indices = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 7, 7]
 
-@inline wheel_index(n) = ( (d, r) = divrem(n - 1, 30); return 8d + wheel_indices[r+2] )
-@inline wheel_prime(n) = ( (d, r) = ((n - 1) >>> 3, (n - 1) & 7); return 30d + wheel_primes[r+1] )
+@inline function wheel_index(n)
+    (d, r) = divrem(n - 1, 30)
+    8d + wheel_indices[r+2]
+end
+@inline function wheel_prime(n)
+    (d, r) = ((n - 1) >>> 3, (n - 1) & 7)
+    30d + wheel_primes[r+1]
+end
 
 function _primesmask(limit::Int)
     limit < 7 && throw(ArgumentError("limit must be at least 7, got $limit"))
@@ -53,7 +68,12 @@ function _primesmask(lo::Int, hi::Int)
     return sieve
 end
 
-# Sieve of the primes from lo up to hi represented as an array of booleans
+"""
+    primesmask([lo,] hi)
+
+Returns a prime sieve, as a `BitArray`, of the positive integers (from `lo`, if specified)
+up to `hi`. Useful when working with either primes or composite numbers.
+"""
 function primesmask(lo::Int, hi::Int)
     0 < lo ≤ hi || throw(ArgumentError("the condition 0 < lo ≤ hi must be met"))
     sieve = falses(hi - lo + 1)
@@ -76,6 +96,11 @@ primesmask(limit::Int) = primesmask(1, limit)
 primesmask(n::Integer) = n <= typemax(Int) ? primesmask(Int(n)) :
     throw(ArgumentError("requested number of primes must be ≤ $(typemax(Int)), got $n"))
 
+"""
+    primes([lo,] hi)
+
+Returns a collection of the prime numbers (from `lo`, if specified) up to `hi`.
+"""
 function primes(lo::Int, hi::Int)
     lo ≤ hi || throw(ArgumentError("the condition lo ≤ hi must be met"))
     list = Int[]
@@ -83,7 +108,7 @@ function primes(lo::Int, hi::Int)
     lo ≤ 3 ≤ hi && push!(list, 3)
     lo ≤ 5 ≤ hi && push!(list, 5)
     hi < 7 && return list
-    sizehint!(list, floor(Int, hi / log(hi)))
+    sizehint!(list,  5 + floor(Int, hi / (log(hi) - 1.12) -  lo / (log(max(lo,2)) - 1.12*(lo > 7))) ) # http://projecteuclid.org/euclid.rmjm/1181070157    
     sieve = _primesmask(max(7, lo), hi)
     lwi = wheel_index(lo - 1)
     @inbounds for i = 1:length(sieve)   # don't use eachindex here
@@ -95,10 +120,20 @@ primes(n::Int) = primes(1, n)
 
 const PRIMES = primes(2^16)
 
-# Small precomputed primes + Miller-Rabin for primality testing:
-#     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
-#
+"""
+    isprime(x::Integer) -> Bool
+
+Returns `true` if `x` is prime, and `false` otherwise.
+
+```jldoctest
+julia> isprime(3)
+true
+```
+"""
 function isprime(n::Integer)
+    # Small precomputed primes + Miller-Rabin for primality testing:
+    #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
+    #
     (n < 3 || iseven(n)) && return n == 2
     n <= 2^16 && return PRIMES[searchsortedlast(PRIMES,n)] == n
     s = trailing_zeros(n-1)
@@ -115,6 +150,22 @@ function isprime(n::Integer)
     end
     return true
 end
+
+"""
+    isprime(x::BigInt, [reps = 25]) -> Bool
+
+Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
+and `false` if `x` is composite (not prime). The false positive rate is about `0.25^reps`.
+`reps = 25` is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
+
+```jldoctest
+julia> isprime(big(3))
+true
+```
+"""
+isprime(x::BigInt, reps=25) = ccall((:__gmpz_probab_prime_p,:libgmp), Cint, (Ptr{BigInt}, Cint), &x, reps) > 0
+
+
 
 # Miller-Rabin witness choices based on:
 #     http://mathoverflow.net/questions/101922/smallest-collection-of-bases-for-prime-testing-of-64-bit-numbers
@@ -142,6 +193,21 @@ isprime(n::Int128) = n < 2 ? false :
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
+"""
+    factor(n) -> Dict
+
+Compute the prime factorization of an integer `n`. Returns a dictionary. The keys of the
+dictionary correspond to the factors, and hence are of the same type as `n`. The value
+associated with each key indicates the number of times the factor appears in the
+factorization.
+
+```jldoctest
+julia> factor(100) # == 2*2*5*5
+Dict{Int64,Int64} with 2 entries:
+  2 => 2
+  5 => 2
+```
+"""
 function factor{T<:Integer}(n::T)
     0 < n || throw(ArgumentError("number to be factored must be ≥ 0, got $n"))
     h = Dict{T,Int}()
@@ -204,3 +270,5 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Dict{K,Int})
         end
     end
 end
+
+end # module
