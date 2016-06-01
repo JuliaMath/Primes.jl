@@ -176,6 +176,7 @@ isprime(x::BigInt, reps=25) = ccall((:__gmpz_probab_prime_p,:libgmp), Cint, (Ptr
 #     http://miller-rabin.appspot.com
 #     https://github.com/JuliaLang/julia/issues/11594
 #     Forišek and Jančina, "Fast Primality Testing for Integers That Fit into a Machine Word", 2015
+#         (in particular, see function FJ32_256, from which the hash and bases were taken)
 const bases = UInt16[15591,2018,166,7429,8064,16045,10503,4399,1949,1295,2776,
 3620,560,3128,5212,2657,2300,2021,4652,1471,9336,4018,2398,20462,10277,8028,
 2213,6219,620,3763,4852,5012,3185,1333,6227,5298,1074,2391,5113,7061,803,1269,
