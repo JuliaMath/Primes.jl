@@ -1,7 +1,7 @@
 using Primes
 using Base.Test
 
-import Primes: isprime, primes, primesmask, factor
+import Primes: isprime, primes, primesmask, factor, factorize
 
 # primes
 
@@ -203,3 +203,9 @@ euler7(n) = primes(floor(Int,n*log(n*log(n))))[n]
 
 # project euler 10: 142913828922
 @test sum(map(Int64,primes(2000000))) == 142913828922
+
+# factorize
+@test_throws ArgumentError factorize(0)
+@test factorize(1) == Int[]
+@test factorize(3) == [3]
+@test factorize(4) == [2,2]
