@@ -108,7 +108,7 @@ function primes(lo::Int, hi::Int)
     lo ≤ 3 ≤ hi && push!(list, 3)
     lo ≤ 5 ≤ hi && push!(list, 5)
     hi < 7 && return list
-    sizehint!(list,  5 + floor(Int, hi / (log(hi) - 1.12) -  lo / (log(max(lo,2)) - 1.12*(lo > 7))) ) # http://projecteuclid.org/euclid.rmjm/1181070157    
+    sizehint!(list,  5 + floor(Int, hi / (log(hi) - 1.12) -  lo / (log(max(lo,2)) - 1.12*(lo > 7))) ) # http://projecteuclid.org/euclid.rmjm/1181070157
     sieve = _primesmask(max(7, lo), hi)
     lwi = wheel_index(lo - 1)
     @inbounds for i = 1:length(sieve)   # don't use eachindex here
@@ -209,7 +209,7 @@ Dict{Int64,Int64} with 2 entries:
 ```
 """
 function factor{T<:Integer}(n::T)
-    0 < n || throw(ArgumentError("number to be factored must be ≥ 0, got $n"))
+    0 < n || throw(ArgumentError("number to be factored must be > 0, got $n"))
     h = Dict{T,Int}()
     n == 1 && return h
     isprime(n) && (h[n] = 1; return h)
@@ -268,6 +268,16 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Dict{K,Int})
             isprime(G2) ? h[G2] = get(h,G2,0) + 1 : pollardfactors!(G2,h)
             return h
         end
+    end
+end
+
+function factorize{T<:Integer}(n::T)
+    if n < 1
+        throw(ArgumentError("number to be factored must be > 0, got $n"))
+    elseif n == 1
+        return Vector{T}(0)  # For consistency with factor(1)
+    else
+        return mapreduce(collect, vcat, [repeated(k,v) for (k,v) in factor(n)])
     end
 end
 
