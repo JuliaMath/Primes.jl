@@ -1,6 +1,8 @@
 __precompile__()
 module Primes
 
+import DataStructures: SortedDict
+
 if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
@@ -194,7 +196,7 @@ isprime(n::Int128) = n < 2 ? false :
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
 """
-    factor(n) -> Dict
+    factor(n) -> SortedDict
 
 Compute the prime factorization of an integer `n`. Returns a dictionary. The keys of the
 dictionary correspond to the factors, and hence are of the same type as `n`. The value
@@ -210,7 +212,7 @@ Dict{Int64,Int64} with 2 entries:
 """
 function factor{T<:Integer}(n::T)
     0 < n || throw(ArgumentError("number to be factored must be ≥ 0, got $n"))
-    h = Dict{T,Int}()
+    h = SortedDict{T,Int,Base.Order.ForwardOrdering}()
     n == 1 && return h
     isprime(n) && (h[n] = 1; return h)
     local p::T
@@ -229,7 +231,7 @@ function factor{T<:Integer}(n::T)
     T <: BigInt || widemul(n-1,n-1) <= typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
 end
 
-function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Dict{K,Int})
+function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
     while true
         local c::T = rand(1:(n-1)), G::T = 1, r::K = 1, y::T = rand(0:(n-1)), m::K = 1900
         local ys::T, q::T = 1, x::T
