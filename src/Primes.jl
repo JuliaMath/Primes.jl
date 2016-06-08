@@ -209,7 +209,7 @@ Dict{Int64,Int64} with 2 entries:
 ```
 """
 function factor{T<:Integer}(n::T)
-    0 < n || throw(ArgumentError("number to be factored must be > 0, got $n"))
+    0 < n || throw(ArgumentError("number to be factored must be ≥ 0, got $n"))
     h = Dict{T,Int}()
     n == 1 && return h
     isprime(n) && (h[n] = 1; return h)
