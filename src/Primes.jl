@@ -5,7 +5,7 @@ if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
     else
-        export isprime, primes, primesmask, factor
+        export isprime, primes, primesmask, factor, factorvec
     end
 end
 
@@ -271,7 +271,22 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Dict{K,Int})
     end
 end
 
-function factorize{T<:Integer}(n::T)
+"""
+    factorvec(n::Integer) -> Vector
+
+Compute the prime factorization of `n` with multiplicities. Returns a vector with
+the same type as `n`. The product of the returned vector will equal `n`.
+
+```jldoctest
+julia> factorvec(100)
+4-element Array{Int64,1}:
+ 2
+ 2
+ 5
+ 5
+```
+"""
+function factorvec{T<:Integer}(n::T)
     if n < 1
         throw(ArgumentError("number to be factored must be > 0, got $n"))
     elseif n == 1
