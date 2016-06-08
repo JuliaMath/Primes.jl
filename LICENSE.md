@@ -1,6 +1,6 @@
 The Primes.jl package is licensed under the MIT "Expat" License:
 
-> Copyright (c) 2016: Simon Byrne.
+> Copyright (c) 2016: Stefan Karpinski, Jeff Bezanson, Aitor Ortiz de Latierro Olivella, Pablo Zubieta, Alex Arslan, Simon Byrne and other contributors.
 >
 > Permission is hereby granted, free of charge, to any person obtaining
 > a copy of this software and associated documentation files (the
