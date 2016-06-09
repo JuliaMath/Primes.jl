@@ -8,7 +8,7 @@ if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
     else
-        export isprime, primes, primesmask, factor
+        export isprime, primes, primesmask, factor, factorvec
     end
 end
 
@@ -111,7 +111,7 @@ function primes(lo::Int, hi::Int)
     lo ≤ 3 ≤ hi && push!(list, 3)
     lo ≤ 5 ≤ hi && push!(list, 5)
     hi < 7 && return list
-    sizehint!(list,  5 + floor(Int, hi / (log(hi) - 1.12) -  lo / (log(max(lo,2)) - 1.12*(lo > 7))) ) # http://projecteuclid.org/euclid.rmjm/1181070157    
+    sizehint!(list,  5 + floor(Int, hi / (log(hi) - 1.12) -  lo / (log(max(lo,2)) - 1.12*(lo > 7))) ) # http://projecteuclid.org/euclid.rmjm/1181070157
     sieve = _primesmask(max(7, lo), hi)
     lwi = wheel_index(lo - 1)
     @inbounds for i = 1:length(sieve)   # don't use eachindex here
@@ -297,6 +297,31 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             isprime(G2) ? h[G2] = get(h,G2,0) + 1 : pollardfactors!(G2,h)
             return h
         end
+    end
+end
+
+"""
+    factorvec(n::Integer) -> Vector
+
+Compute the prime factorization of `n` with multiplicities. Returns a vector with
+the same type as `n`. The product of the returned vector will equal `n`.
+
+```jldoctest
+julia> factorvec(100)
+4-element Array{Int64,1}:
+ 2
+ 2
+ 5
+ 5
+```
+"""
+function factorvec{T<:Integer}(n::T)
+    if n < 1
+        throw(ArgumentError("number to be factored must be > 0, got $n"))
+    elseif n == 1
+        return Vector{T}(0)  # For consistency with factor(1)
+    else
+        return mapreduce(collect, vcat, [repeated(k,v) for (k,v) in factor(n)])
     end
 end
 

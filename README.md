@@ -25,6 +25,20 @@ Dict{Int64,Int64} with 2 entries:
   5 => 2
 > ```
 
+    factorvec(n::Integer) -> Vector
+
+> Compute the prime factorization of `n` with multiplicities. Returns a vector with
+the same type as `n`. The product of the returned vector will equal `n`.
+
+> ```julia
+julia> factorvec(100)
+4-element Array{Int64,1}:
+ 2
+ 2
+ 5
+ 5
+> ```
+
     isprime(x::Integer) -> Bool
 
 > Returns `true` if `x` is prime, and `false` otherwise.
