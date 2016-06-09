@@ -137,10 +137,8 @@ function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
-    iseven(n) && return n == 2
-    n in (3,5,7,11,13,17,19,23) && return true
-    for m in (3,5,7,11,13,17,19,23)
-        n % m == 0 && return false
+    for m in (2,3,5,7,11,13,17,19,23)
+        n % m == 0 && return n == m
     end
     n < 841 && return n > 1
     s = trailing_zeros(n-1)
