@@ -12,26 +12,36 @@ Julia functions for computing prime numbers.
 
 This repository contains some functions relating to prime numbers which have been duplicated from Base Julia, as well as new functions and improvements.
 
-    factor(n) -> DataStructures.SortedDict
+    factor(n) -> Dict
 
-> Compute the prime factorization of an integer `n`. Returns a sorted dictionary. The
+> Compute the prime factorization of an integer `n`. Returns a dictionary. The
 keys of the dictionary correspond to the factors, and hence are of the same type as `n`.
 The value associated with each key indicates the number of times the factor appears in the
 factorization.
 > ```julia
 julia> factor(100) # == 2*2*5*5
+Dict{Int64,Int64} with 2 entries:
+  2 => 2
+  5 => 2
+> ```
+
+    factor(ContainerType, n) -> ContainerType
+
+> Return the factorization of `n` using ContainerType
+(a subtype of `Associative` or `AbstractArray`).
+
+> ```julia
+julia> factor(DataStructures.SortedDict, 100)
 DataStructures.SortedDict{Int64,Int64,Base.Order.ForwardOrdering} with 2 entries:
   2 => 2
   5 => 2
 > ```
 
-    factorvec(n::Integer) -> Vector
-
-> Compute the prime factorization of `n` with multiplicities. Returns a vector with
-the same type as `n`. The product of the returned vector will equal `n`.
+> When `ContainerType <: AbstractArray`, this returns the list
+of all prime factors of `n` with multiplicities, in sorted order.
 
 > ```julia
-julia> factorvec(100)
+julia> factor(Vector, 100)
 4-element Array{Int64,1}:
  2
  2
@@ -70,4 +80,4 @@ up to `hi`. Useful when working with either primes or composite numbers.
 To avoid naming conflicts with Base, these are not exported for Julia version 0.4. In this case you will need to explicitly import the symbols:
 
     using Primes
-    import Primes: isprime, primes, primesmask, factor, factorvec
+    import Primes: isprime, primes, primesmask, factor

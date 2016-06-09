@@ -2,13 +2,11 @@
 __precompile__()
 module Primes
 
-import DataStructures: SortedDict
-
 if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
     else
-        export isprime, primes, primesmask, factor, factorvec
+        export isprime, primes, primesmask, factor
     end
 end
 
@@ -221,23 +219,22 @@ isprime(n::Int128) = n < 2 ? false :
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
 """
-    factor(n) -> DataStructures.SortedDict
+    factor(n) -> Dict
 
-Compute the prime factorization of an integer `n`. Returns a sorted dictionary. The
+Compute the prime factorization of an integer `n`. Returns a dictionary. The
 keys of the dictionary correspond to the factors, and hence are of the same type as `n`.
 The value associated with each key indicates the number of times the factor appears in the
 factorization.
 
 ```jldoctest
 julia> factor(100) # == 2*2*5*5
-DataStructures.SortedDict{Int64,Int64,Base.Order.ForwardOrdering} with 2 entries:
+Dict{Int64,Int64} with 2 entries:
   2 => 2
   5 => 2
 ```
 """
-function factor{T<:Integer}(n::T)
+function factor{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}=Dict{T,Int}())
     0 < n || throw(ArgumentError("number to be factored must be > 0, got $n"))
-    h = SortedDict{T,Int,Base.Order.ForwardOrdering}()
     n == 1 && return h
     isprime(n) && (h[n] = 1; return h)
     local p::T
@@ -255,6 +252,40 @@ function factor{T<:Integer}(n::T)
     end
     T <: BigInt || widemul(n-1,n-1) <= typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
 end
+
+"""
+    factor(ContainerType, n) -> ContainerType
+
+Return the factorization of `n` using ContainerType
+(a subtype of `Associative` or `AbstractArray`).
+
+```jldoctest
+julia> factor(DataStructures.SortedDict, 100)
+DataStructures.SortedDict{Int64,Int64,Base.Order.ForwardOrdering} with 2 entries:
+  2 => 2
+  5 => 2
+```
+
+When `ContainerType <: AbstractArray`, this returns the list
+of all prime factors of `n` with multiplicities, in sorted order.
+
+```jldoctest
+julia> factor(Vector, 100)
+4-element Array{Int64,1}:
+ 2
+ 2
+ 5
+ 5
+
+julia> prod(factor(Vector, 100)) == 100
+true
+```
+"""
+factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor(n, D(Dict{T,Int}()))
+factor{T<:Integer, A<:AbstractArray}(::Type{A}, n::T) = A(factor(Vector{T}, n))
+factor{T<:Integer}(::Type{Vector{T}}, n::T) =
+    sort!(mapreduce(collect, vcat, Vector{T}(), [repeated(k,v) for (k,v) in factor(n)]))
+
 
 function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
     while true
@@ -295,31 +326,6 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             isprime(G2) ? h[G2] = get(h,G2,0) + 1 : pollardfactors!(G2,h)
             return h
         end
-    end
-end
-
-"""
-    factorvec(n::Integer) -> Vector
-
-Compute the prime factorization of `n` with multiplicities. Returns a vector with
-the same type as `n`. The product of the returned vector will equal `n`.
-
-```jldoctest
-julia> factorvec(100)
-4-element Array{Int64,1}:
- 2
- 2
- 5
- 5
-```
-"""
-function factorvec{T<:Integer}(n::T)
-    if n < 1
-        throw(ArgumentError("number to be factored must be > 0, got $n"))
-    elseif n == 1
-        return Vector{T}(0)  # For consistency with factor(1)
-    else
-        return mapreduce(collect, vcat, [repeated(k,v) for (k,v) in factor(n)])
     end
 end
 
