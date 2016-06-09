@@ -223,22 +223,22 @@ isprime(n::Int128) = n < 2 ? false :
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
 """
-    factor(n) -> SortedDict
+    factor(n) -> DataStructures.SortedDict
 
-Compute the prime factorization of an integer `n`. Returns a dictionary. The keys of the
-dictionary correspond to the factors, and hence are of the same type as `n`. The value
-associated with each key indicates the number of times the factor appears in the
+Compute the prime factorization of an integer `n`. Returns a sorted dictionary. The
+keys of the dictionary correspond to the factors, and hence are of the same type as `n`.
+The value associated with each key indicates the number of times the factor appears in the
 factorization.
 
 ```jldoctest
 julia> factor(100) # == 2*2*5*5
-Dict{Int64,Int64} with 2 entries:
+DataStructures.SortedDict{Int64,Int64,Base.Order.ForwardOrdering} with 2 entries:
   2 => 2
   5 => 2
 ```
 """
 function factor{T<:Integer}(n::T)
-    0 < n || throw(ArgumentError("number to be factored must be ≥ 0, got $n"))
+    0 < n || throw(ArgumentError("number to be factored must be > 0, got $n"))
     h = SortedDict{T,Int,Base.Order.ForwardOrdering}()
     n == 1 && return h
     isprime(n) && (h[n] = 1; return h)
