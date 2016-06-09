@@ -10,17 +10,17 @@ Julia functions for computing prime numbers.
 
 ## Usage
 
-At the moment, this repository just contains the following functions which have been duplicated from Base Julia:
+This repository contains some functions relating to prime numbers which have been duplicated from Base Julia, as well as new functions and improvements.
 
-    factor(n) -> Dict
+    factor(n) -> DataStructures.SortedDict
 
-> Compute the prime factorization of an integer `n`. Returns a dictionary. The keys of the
-dictionary correspond to the factors, and hence are of the same type as `n`. The value
-associated with each key indicates the number of times the factor appears in the
+> Compute the prime factorization of an integer `n`. Returns a sorted dictionary. The
+keys of the dictionary correspond to the factors, and hence are of the same type as `n`.
+The value associated with each key indicates the number of times the factor appears in the
 factorization.
 > ```julia
 julia> factor(100) # == 2*2*5*5
-Dict{Int64,Int64} with 2 entries:
+DataStructures.SortedDict{Int64,Int64,Base.Order.ForwardOrdering} with 2 entries:
   2 => 2
   5 => 2
 > ```
@@ -70,4 +70,4 @@ up to `hi`. Useful when working with either primes or composite numbers.
 To avoid naming conflicts with Base, these are not exported for Julia version 0.4. In this case you will need to explicitly import the symbols:
 
     using Primes
-    import Primes: isprime, primes, primesmask, factor
+    import Primes: isprime, primes, primesmask, factor, factorvec
