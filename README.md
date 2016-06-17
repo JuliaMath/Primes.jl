@@ -25,6 +25,22 @@ Dict{Int64,Int64} with 2 entries:
   5 => 2
 > ```
 
+> For convenience, a negative number `n` is factored as `-1*(-n)` (i.e. `-1` is considered
+to be a factor), and `0` is factored as `0^1`:
+> ```julia
+julia> factor(-9) # == -1*3^2
+Dict{Int64,Int64} with 2 entries:
+  -1 => 1
+   3 => 2
+> ```
+
+> ```julia
+julia> factor(0)
+Dict{Int64,Int64} with 1 entries:
+  0 => 1
+> ```
+> ```
+
     factor(ContainerType, n) -> ContainerType
 
 > Return the factorization of `n` stored in a `ContainerType`, which must be a

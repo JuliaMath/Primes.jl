@@ -8,7 +8,18 @@ if VERSION >= v"0.5.0-dev+4340"
     else
         export isprime, primes, primesmask, factor
     end
+    using  Base: BitSigned
+    using Base.Checked.checked_neg
+else
+    typealias BitSigned Union{Int128,Int16,Int32,Int64,Int8}
+    function checked_neg(x::Integer)
+        y = -x
+        (y<0) == (x<0) && throw(OverflowError())
+        y
+    end
 end
+
+
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
@@ -219,7 +230,7 @@ isprime(n::Int128) = n < 2 ? false :
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
 """
-    factor(n) -> Dict
+    factor(n::Integer) -> Dict
 
 Compute the prime factorization of an integer `n`. Returns a dictionary. The
 keys of the dictionary correspond to the factors, and hence are of the same type as `n`.
@@ -232,11 +243,41 @@ Dict{Int64,Int64} with 2 entries:
   2 => 2
   5 => 2
 ```
+
+For convenience, a negative number `n` is factored as `-1*(-n)` (i.e. `-1` is considered
+to be a factor), and `0` is factored as `0^1`:
+
+```jldoctest
+julia> factor(-9) # == -1*3^2
+Dict{Int64,Int64} with 2 entries:
+  -1 => 1
+   3 => 2
+
+julia> factor(0)
+Dict{Int64,Int64} with 1 entries:
+  0 => 1
+```
 """
 function factor{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}=Dict{T,Int}())
-    0 < n || throw(ArgumentError("number to be factored must be > 0, got $n"))
-    n == 1 && return h
-    isprime(n) && (h[n] = 1; return h)
+    # check for special cases
+    if n < 0
+        h[-1] = 1
+        if isa(n, BitSigned) && n == typemin(T)
+            h[2] = 8*sizeof(T)-1
+            return h
+        else
+            return factor(checked_neg(n), h)
+        end
+    elseif n == 0
+        h[0] = 1
+        return h
+    elseif n == 1
+        return h
+    elseif isprime(n)
+        h[n] = 1
+        return h
+    end
+
     local p::T
     for p in PRIMES
         if n % p == 0
@@ -254,7 +295,7 @@ function factor{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}=Dict{T,Int}()
 end
 
 """
-    factor(ContainerType, n) -> ContainerType
+    factor(ContainerType, n::Integer) -> ContainerType
 
 Return the factorization of `n` stored in a `ContainerType`, which must be a
 subtype of `Associative` or `AbstractArray`, a `Set`, or an `IntSet`.

@@ -207,7 +207,6 @@ euler7(n) = primes(floor(Int,n*log(n*log(n))))[n]
 
 # factor(Vector, n)
 for V in (Vector, Vector{Int}, Vector{Int128})
-    @test_throws ArgumentError factor(V, 0)
     @test factor(V, 1) == Int[]
     @test factor(V, 3) == [3]
     @test factor(V, 4) == [2,2]
@@ -224,3 +223,14 @@ end
 @test_throws MethodError factor(Int, 10)
 @test_throws MethodError factor(Any, 10)
 @test_throws MethodError factor(Tuple, 10)
+
+# factor non-positive numbers:
+@test factor(0) == Dict(0=>1)
+@test factor(-1) == Dict(-1=>1)
+@test factor(-9) == Dict(-1=>1, 3=>2)
+
+@test factor(typemin(Int32)) == Dict(-1=>1, 2=>31)
+@test factor(typemin(Int64)) == Dict(-1=>1, 2=>63)
+@test factor(typemin(Int128)) == Dict(-1=>1, 2=>127)
+
+@test factor(1) == Dict{Int,Int}()
