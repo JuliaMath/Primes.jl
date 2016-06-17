@@ -257,7 +257,7 @@ end
     factor(ContainerType, n) -> ContainerType
 
 Return the factorization of `n` stored in a `ContainerType`, which must be a
-subtype of `Associative`, `AbstractArray`, or `Base.AbstractSet`.
+subtype of `Associative` or `AbstractArray`, a `Set`, or an `IntSet`.
 
 ```jldoctest
 julia> factor(DataStructures.SortedDict, 100)
@@ -281,7 +281,7 @@ julia> prod(factor(Vector, 100)) == 100
 true
 ```
 
-When `ContainerType <: Base.AbstractSet`, this returns the distinct prime
+When `ContainerType == Set`, this returns the distinct prime
 factors as a set.
 
 ```jldoctest
@@ -293,7 +293,7 @@ factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor(n, D(Dict{T,Int}())
 factor{T<:Integer, A<:AbstractArray}(::Type{A}, n::T) = A(factor(Vector{T}, n))
 factor{T<:Integer}(::Type{Vector{T}}, n::T) =
     sort!(mapreduce(collect, vcat, Vector{T}(), [repeated(k,v) for (k,v) in factor(n)]))
-factor{T<:Integer, S<:Base.AbstractSet}(::Type{S}, n::T) = S(keys(factor(n)))
+factor{T<:Integer, S<:Union{Set,IntSet}}(::Type{S}, n::T) = S(keys(factor(n)))
 factor{T<:Any}(::Type{T}, n) = throw(MethodError(factor, (T, n)))
 
 

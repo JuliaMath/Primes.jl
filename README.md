@@ -28,7 +28,7 @@ Dict{Int64,Int64} with 2 entries:
     factor(ContainerType, n) -> ContainerType
 
 > Return the factorization of `n` stored in a `ContainerType`, which must be a
-subtype of `Associative`, `AbstractArray`, or `Base.AbstractSet`.
+subtype of `Associative` or `AbstractArray`, a `Set`, or an `IntSet`.
 
 > ```julia
 julia> factor(DataStructures.SortedDict, 100)
@@ -47,16 +47,18 @@ julia> factor(Vector, 100)
  2
  5
  5
+
+julia> prod(factor(Vector, 100)) == 100
+true
 > ```
 
-> When `ContainerType <: Base.AbstractSet`, this returns the distinct prime
+> When `ContainerType == Set`, this returns the distinct prime
 factors as a set.
 
 > ```julia
 julia> factor(Set, 100)
 Set([2,5])
 > ```
-
 
     isprime(x::Integer) -> Bool
 
