@@ -218,7 +218,7 @@ end
 
 # factor sets
 @test factor(Set, 100) == Set([2, 5])
-@test factor(IntSet, 100) = IntSet([2, 5])
+@test factor(IntSet, 100) == IntSet([2, 5])
 
 # factor other things and fail
 @test_throws MethodError factor(Int, 10)
