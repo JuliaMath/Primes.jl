@@ -215,3 +215,12 @@ end
 
 # factor with non-default associative containers
 @test factor(SortedDict, 100) == factor(Dict, 100)
+
+# factor sets
+@test factor(Set, 100) == Set([2, 5])
+@test factor(IntSet, 100) == IntSet([2, 5])
+
+# factor other things and fail
+@test_throws MethodError factor(Int, 10)
+@test_throws MethodError factor(Any, 10)
+@test_throws MethodError factor(Tuple, 10)

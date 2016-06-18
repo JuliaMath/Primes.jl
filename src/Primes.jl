@@ -256,8 +256,8 @@ end
 """
     factor(ContainerType, n) -> ContainerType
 
-Return the factorization of `n` using ContainerType
-(a subtype of `Associative` or `AbstractArray`).
+Return the factorization of `n` stored in a `ContainerType`, which must be a
+subtype of `Associative` or `AbstractArray`, a `Set`, or an `IntSet`.
 
 ```jldoctest
 julia> factor(DataStructures.SortedDict, 100)
@@ -280,11 +280,21 @@ julia> factor(Vector, 100)
 julia> prod(factor(Vector, 100)) == 100
 true
 ```
+
+When `ContainerType == Set`, this returns the distinct prime
+factors as a set.
+
+```jldoctest
+julia> factor(Set, 100)
+Set([2,5])
+```
 """
 factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor(n, D(Dict{T,Int}()))
 factor{T<:Integer, A<:AbstractArray}(::Type{A}, n::T) = A(factor(Vector{T}, n))
 factor{T<:Integer}(::Type{Vector{T}}, n::T) =
     sort!(mapreduce(collect, vcat, Vector{T}(), [repeated(k,v) for (k,v) in factor(n)]))
+factor{T<:Integer, S<:Union{Set,IntSet}}(::Type{S}, n::T) = S(keys(factor(n)))
+factor{T<:Any}(::Type{T}, n) = throw(MethodError(factor, (T, n)))
 
 
 function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
