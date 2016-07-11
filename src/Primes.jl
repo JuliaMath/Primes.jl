@@ -236,7 +236,7 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             h[2] = 8*sizeof(T)-1
             return h
         else
-            return factor(checked_neg(n), h)
+            return factor!(checked_neg(n), h)
         end
     elseif n == 0
         h[0] = 1
