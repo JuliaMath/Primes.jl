@@ -8,7 +8,7 @@ if VERSION >= v"0.5.0-dev+4340"
     else
         export isprime, primes, primesmask, factor
     end
-    using  Base: BitSigned
+    using Base: BitSigned
     using Base.Checked.checked_neg
 else
     typealias BitSigned Union{Int128,Int16,Int32,Int64,Int8}
@@ -18,7 +18,6 @@ else
         y
     end
 end
-
 
 
 # Primes generating functions
@@ -229,36 +228,7 @@ isprime(n::Int128) = n < 2 ? false :
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
-"""
-    factor(n::Integer) -> Dict
-
-Compute the prime factorization of an integer `n`. Returns a dictionary. The
-keys of the dictionary correspond to the factors, and hence are of the same type as `n`.
-The value associated with each key indicates the number of times the factor appears in the
-factorization.
-
-```jldoctest
-julia> factor(100) # == 2*2*5*5
-Dict{Int64,Int64} with 2 entries:
-  2 => 2
-  5 => 2
-```
-
-For convenience, a negative number `n` is factored as `-1*(-n)` (i.e. `-1` is considered
-to be a factor), and `0` is factored as `0^1`:
-
-```jldoctest
-julia> factor(-9) # == -1*3^2
-Dict{Int64,Int64} with 2 entries:
-  -1 => 1
-   3 => 2
-
-julia> factor(0)
-Dict{Int64,Int64} with 1 entries:
-  0 => 1
-```
-"""
-function factor{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}=Dict{T,Int}())
+function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
     # check for special cases
     if n < 0
         h[-1] = 1
@@ -293,6 +263,39 @@ function factor{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}=Dict{T,Int}()
     end
     T <: BigInt || widemul(n-1,n-1) <= typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
 end
+
+
+"""
+    factor(n::Integer) -> Dict
+
+Compute the prime factorization of an integer `n`. Returns a dictionary. The
+keys of the dictionary correspond to the factors, and hence are of the same type as `n`.
+The value associated with each key indicates the number of times the factor appears in the
+factorization.
+
+```jldoctest
+julia> factor(100) # == 2*2*5*5
+Dict{Int64,Int64} with 2 entries:
+  2 => 2
+  5 => 2
+```
+
+For convenience, a negative number `n` is factored as `-1*(-n)` (i.e. `-1` is considered
+to be a factor), and `0` is factored as `0^1`:
+
+```jldoctest
+julia> factor(-9) # == -1*3^2
+Dict{Int64,Int64} with 2 entries:
+  -1 => 1
+   3 => 2
+
+julia> factor(0)
+Dict{Int64,Int64} with 1 entries:
+  0 => 1
+```
+"""
+factor{T<:Integer}(n::T) = factor!(n, Dict{T,Int}())
+
 
 """
     factor(ContainerType, n::Integer) -> ContainerType
@@ -330,7 +333,7 @@ julia> factor(Set, 100)
 Set([2,5])
 ```
 """
-factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor(n, D(Dict{T,Int}()))
+factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor!(n, D(Dict{T,Int}()))
 factor{T<:Integer, A<:AbstractArray}(::Type{A}, n::T) = A(factor(Vector{T}, n))
 factor{T<:Integer}(::Type{Vector{T}}, n::T) =
     sort!(mapreduce(collect, vcat, Vector{T}(), [repeated(k,v) for (k,v) in factor(n)]))
