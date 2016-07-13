@@ -8,7 +8,7 @@ if VERSION >= v"0.5.0-dev+4340"
     else
         export isprime, primes, primesmask, factor
     end
-    using  Base: BitSigned
+    using Base: BitSigned
     using Base.Checked.checked_neg
 else
     typealias BitSigned Union{Int128,Int16,Int32,Int64,Int8}
@@ -18,7 +18,6 @@ else
         y
     end
 end
-
 
 
 # Primes generating functions
@@ -229,6 +228,43 @@ isprime(n::Int128) = n < 2 ? false :
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
+function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
+    # check for special cases
+    if n < 0
+        h[-1] = 1
+        if isa(n, BitSigned) && n == typemin(T)
+            h[2] = 8*sizeof(T)-1
+            return h
+        else
+            return factor!(checked_neg(n), h)
+        end
+    elseif n == 0
+        h[0] = 1
+        return h
+    elseif n == 1
+        return h
+    elseif isprime(n)
+        h[n] = 1
+        return h
+    end
+
+    local p::T
+    for p in PRIMES
+        if n % p == 0
+            h[p] = get(h,p,0)+1
+            n = div(n,p)
+            while n % p == 0
+                h[p] = get(h,p,0)+1
+                n = div(n,p)
+            end
+            n == 1 && return h
+            isprime(n) && (h[n] = 1; return h)
+        end
+    end
+    T <: BigInt || widemul(n-1,n-1) <= typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
+end
+
+
 """
     factor(n::Integer) -> Dict
 
@@ -258,41 +294,8 @@ Dict{Int64,Int64} with 1 entries:
   0 => 1
 ```
 """
-function factor{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}=Dict{T,Int}())
-    # check for special cases
-    if n < 0
-        h[-1] = 1
-        if isa(n, BitSigned) && n == typemin(T)
-            h[2] = 8*sizeof(T)-1
-            return h
-        else
-            return factor(checked_neg(n), h)
-        end
-    elseif n == 0
-        h[0] = 1
-        return h
-    elseif n == 1
-        return h
-    elseif isprime(n)
-        h[n] = 1
-        return h
-    end
+factor{T<:Integer}(n::T) = factor!(n, Dict{T,Int}())
 
-    local p::T
-    for p in PRIMES
-        if n % p == 0
-            h[p] = get(h,p,0)+1
-            n = div(n,p)
-            while n % p == 0
-                h[p] = get(h,p,0)+1
-                n = div(n,p)
-            end
-            n == 1 && return h
-            isprime(n) && (h[n] = 1; return h)
-        end
-    end
-    T <: BigInt || widemul(n-1,n-1) <= typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
-end
 
 """
     factor(ContainerType, n::Integer) -> ContainerType
@@ -330,7 +333,7 @@ julia> factor(Set, 100)
 Set([2,5])
 ```
 """
-factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor(n, D(Dict{T,Int}()))
+factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor!(n, D(Dict{T,Int}()))
 factor{T<:Integer, A<:AbstractArray}(::Type{A}, n::T) = A(factor(Vector{T}, n))
 factor{T<:Integer}(::Type{Vector{T}}, n::T) =
     sort!(mapreduce(collect, vcat, Vector{T}(), [repeated(k,v) for (k,v) in factor(n)]))
