@@ -127,6 +127,9 @@ for T in [Int,BigInt], n = [1:1000;1000000]
     end
 end
 
+# Issue 25
+@test primes(-2, 7) == primes(0, 7) == primes(2, 7)
+
 @test !isprime(1000000003)
 @test !isprime(1000000005)
 @test  isprime(1000000007)
