@@ -2,9 +2,7 @@ using Primes
 using Base.Test
 using DataStructures: SortedDict
 
-import Primes: isprime, primes, primesmask, factor
-
-# primes
+import Primes: isprime, primes, primesmask, factor, lucaslehmer, riesel
 
 @test primes(10000) == primes(2, 10000) == [
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
@@ -113,11 +111,11 @@ for n = 100:100:1000
     @test primesmask(n, 10n) == primesmask(10n)[n:end]
 end
 
-for T in [Int,BigInt], n = [1:1000;1000000]
-    n = convert(T,n)
+for T in [Int, BigInt], n = [1:1000;1000000]
+    n = convert(T, n)
     f = factor(n)
-    @test n == prod(T[p^k for (p,k)=f])
-    prime = n!=1 && length(f)==1 && get(f,n,0)==1
+    @test n == prod(T[p^k for (p, k) in f])
+    prime = n != 1 && length(f) == 1 && get(f, n, 0) == 1
     @test isprime(n) == prime
 
     s = primesmask(n)
@@ -155,39 +153,37 @@ end
 @test !isprime(0xffffffffffffffc7)
 @test !isprime(0xffffffffffffffc9)
 
-for T in [Int8,UInt8,Int16,UInt16,Int128,UInt128]
+for T in [Int8, UInt8, Int16, UInt16, Int128, UInt128]
     @test isprime(T(2))
     @test !isprime(T(4))
 end
 
 
 # Base issue #5210
-@test prod([ k^v for (k,v) in factor(typemax(UInt32)) ]) == typemax(UInt32)
-@test prod([ k^v for (k,v) in factor(typemax(Int8)) ]) == typemax(Int8)
+@test prod([k^v for (k, v) in factor(typemax(UInt32))]) == typemax(UInt32)
+@test prod([k^v for (k, v) in factor(typemax(Int8))]) == typemax(Int8)
 
 # factorization of factors > 2^16
-@test factor((big(2)^31-1)^2) == Dict(big(2^31-1) => 2)
-@test factor((big(2)^31-1)*(big(2)^17-1)) == Dict(big(2^31-1) => 1, big(2^17-1) => 1)
+@test factor((big(2)^31 - 1)^2) == Dict(big(2^31 - 1) => 2)
+@test factor((big(2)^31 - 1) * (big(2)^17 - 1)) == Dict(big(2^31 - 1) => 1, big(2^17 - 1) => 1)
 
 # fast factorization of Int128 (Base issue #11477)
-@test factor((Int128(2)^39-7)^2) == Dict(Int128(2)^39-7 => 2)
+@test factor((Int128(2)^39 - 7)^2) == Dict(Int128(2)^39 - 7 => 2)
 
 # Base issue #9611
-@test factor(Int128(2)^101+1) == Dict(3=>1,845100400152152934331135470251=>1)
+@test factor(Int128(2)^101 + 1) == Dict(3 => 1, 845100400152152934331135470251 => 1)
 
 # test second branch, after all small primes in list have been searched
-@test factor(10009 * Int128(1000000000000037)) == Dict(10009=>1,1000000000000037=>1)
+@test factor(10009 * Int128(1000000000000037)) == Dict(10009 => 1, 1000000000000037 => 1)
 
 for n = 1:100
     m = 1
-    for (p,k) in factor(n)
-        m *= p^k
-    end
+    for (p, k) in factor(n) m *= p^k end
     @test n == m
 end
 
-let i = rand(1:2^(3*min(Sys.WORD_SIZE,64)÷4))
-    @test primes(i,i+300) == filter(isprime, i:i + 300) == filter(isprime, big(i:i + 300))
+let i = rand(1:2^(3 * div(min(Sys.WORD_SIZE,64), 4)))
+    @test primes(i, i + 300) == filter(isprime, i:(i + 300)) == filter(isprime, big(i:(i + 300)))
 end
 
 
@@ -202,17 +198,17 @@ end
 @test maximum(keys(factor(600851475143))) == 6857
 
 # project euler 7: 104743
-euler7(n) = primes(floor(Int,n*log(n*log(n))))[n]
+euler7(n) = primes(floor(Int, n * log(n * log(n))))[n]
 @test euler7(10001) == 104743
 
 # project euler 10: 142913828922
-@test sum(map(Int64,primes(2000000))) == 142913828922
+@test sum(map(Int64, primes(2000000))) == 142913828922
 
 # factor(Vector, n)
 for V in (Vector, Vector{Int}, Vector{Int128})
-    @test factor(V, 1) == Int[]
+    @test factor(V, 1) == Array{Int, 1}()
     @test factor(V, 3) == [3]
-    @test factor(V, 4) == [2,2]
+    @test factor(V, 4) == [2, 2]
 end
 
 # factor with non-default associative containers
@@ -228,12 +224,23 @@ end
 @test_throws MethodError factor(Tuple, 10)
 
 # factor non-positive numbers:
-@test factor(0) == Dict(0=>1)
-@test factor(-1) == Dict(-1=>1)
-@test factor(-9) == Dict(-1=>1, 3=>2)
+@test factor(0) == Dict(0 => 1)
+@test factor(-1) == Dict(-1 => 1)
+@test factor(-9) == Dict(-1 => 1, 3 => 2)
 
-@test factor(typemin(Int32)) == Dict(-1=>1, 2=>31)
-@test factor(typemin(Int64)) == Dict(-1=>1, 2=>63)
-@test factor(typemin(Int128)) == Dict(-1=>1, 2=>127)
+@test factor(typemin(Int32)) == Dict(-1 => 1, 2 => 31)
+@test factor(typemin(Int64)) == Dict(-1 => 1, 2 => 63)
+@test factor(typemin(Int128)) == Dict(-1 => 1, 2 => 127)
 
 @test factor(1) == Dict{Int,Int}()
+
+# Lucas-Lehmer
+@test !lucaslehmer(11)
+@test lucaslehmer(13)
+@test_throws ArgumentError lucaslehmer(2)
+
+#  Lucas-Lehmer-Riesel
+@test riesel(1, 13) == lucaslehmer(13)
+@test riesel(3, 607)
+@test_throws ArgumentError riesel(1000, 9)
+@test_throws ArgumentError riesel(0, 1)
