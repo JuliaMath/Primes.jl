@@ -6,8 +6,12 @@ if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
     else
+        # Primal functions (previous Base)
         export isprime, primes, primesmask, factor
     end
+    # Additional functions (non-Base)
+    export lucaslehmer, riesel
+
     using Base: BitSigned
     using Base.Checked.checked_neg
 else
@@ -382,6 +386,58 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             return h
         end
     end
+end
+
+"""
+    lucaslehmer(P::Integer, [s::Integer = 4]) -> Bool
+
+Lucas-Lehmer primality test for N of form N = 2^P - 1 (aka. Mersenne numbers).
+Returns `true` if 2^P - 1 is prime, and `false` otherwise.
+
+```jldoctest
+julia> lucaslehmer(11)
+false
+
+julia> lucaslehmer(13)
+true
+```
+"""
+function lucaslehmer(P::Integer, s::Integer = BigInt(4))
+    P < 3 && return throw(ArgumentError("The condition P ≥ 3 must be met."))
+    M = BigInt(2)^P - 1
+    for i in 1:(P - 2)
+        s = (s^2 - 2) % M
+    end
+    return s == 0
+end
+
+"""
+    riesel(k::Integer, n::Integer) -> Bool
+
+Lucas-Lehmer-Riesel primality test for N of form N = k * 2^n - 1,
+with 0 < k < 2^n and n > 0.
+Returns `true` if k * 2^n - 1 is prime, and `false` otherwise or
+if the combination of k and n is not supported.
+
+```jldoctest
+julia> riesel(1, 11)  # == lucaslehmer(11)
+false
+
+julia> riesel(3, 607)
+true
+```
+"""
+function riesel(k::Integer, n::Integer)
+    0 < k < BigInt(2)^n || return throw(ArgumentError("The condition 0 < k < 2^n must be met."))
+    if k == 1 && n & 1 == 1
+        return n % 4 == 3 ? lucaslehmer(n, BigInt(3)) : lucaslehmer(n)
+    elseif k == 3 && (n % 4) % 3 == 0
+        return lucaslehmer(n, BigInt(5778))
+    elseif (k % 6) % 4 == 1 && (k * 2^n - 1) % 3 > 0
+        pass = 1  # placeholder for later implementation
+    end
+    warn("LLR test is currently not implemented for this form of N.")
+    return false
 end
 
 end # module
