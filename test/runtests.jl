@@ -242,7 +242,9 @@ end
 @test_throws ArgumentError lucaslehmer(2)
 
 #  Lucas-Lehmer-Riesel
-@test riesel(1, 13) == lucaslehmer(13)
-@test riesel(3, 607)
 @test_throws ArgumentError riesel(1000, 9)
 @test_throws ArgumentError riesel(0, 1)
+@test riesel(1, 13) == lucaslehmer(13)    # Case #1
+@test riesel(3, 607)                      # Case #2
+@test_throws ErrorException riesel(11, 4) # Case #3
+@test_throws ErrorException riesel(20, 5) # Case `else`
