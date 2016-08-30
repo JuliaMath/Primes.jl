@@ -391,7 +391,7 @@ end
 """
     lucaslehmer(P::Integer, [s::Integer = 4]) -> Bool
 
-Lucas-Lehmer primality test for N of form N = 2^P - 1, also known as Mersenne numbers.
+Lucas-Lehmer test for primes of the form 2^P - 1, also known as Mersenne primes.
 Returns `true` if 2^P - 1 is prime, and `false` otherwise.
 
 ```jldoctest
@@ -433,11 +433,9 @@ function riesel(k::Integer, n::Integer)
         return n % 4 == 3 ? lucaslehmer(n, BigInt(3)) : lucaslehmer(n)
     elseif k == 3 && (n % 4) % 3 == 0
         return lucaslehmer(n, BigInt(5778))
-    elseif (k % 6) % 4 == 1 && (k * 2^n - 1) % 3 > 0
-        # TBA
-        error("LLR test is currently not implemented for this form of N.")
     else
-        error("LLR test is currently not implemented for this form of N.")
+        # TODO: Implement a case for (k % 6) % 4 == 1 && (k * 2^n - 1) % 3 > 0
+        throw(ArgumentError("The LLR test is not currently implemented for numbers of this form."))
     end
 end
 
