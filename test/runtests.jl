@@ -208,7 +208,7 @@ euler7(n) = primes(floor(Int, n * log(n * log(n))))[n]
 
 # factor(Vector, n)
 for V in (Vector, Vector{Int}, Vector{Int128})
-    @test factor(V, 1) == Array{Int, 1}()
+    @test factor(V, 1) == Int[]
     @test factor(V, 3) == [3]
     @test factor(V, 4) == [2, 2]
 end

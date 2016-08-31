@@ -6,7 +6,6 @@ if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
     else
-        # Primal functions (previous Base)
         export isprime, primes, primesmask, factor
     end
 
@@ -119,7 +118,7 @@ Returns a collection of the prime numbers (from `lo`, if specified) up to `hi`.
 """
 function primes(lo::Int, hi::Int)
     lo ≤ hi || throw(ArgumentError("The condition lo ≤ hi must be met."))
-    list = Array{Int, 1}()
+    list = Int[]
     lo ≤ 2 ≤ hi && push!(list, 2)
     lo ≤ 3 ≤ hi && push!(list, 3)
     lo ≤ 5 ≤ hi && push!(list, 5)
