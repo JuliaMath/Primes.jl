@@ -10,7 +10,7 @@ if VERSION >= v"0.5.0-dev+4340"
         export isprime, primes, primesmask, factor
     end
     # Additional functions (non-Base)
-    export lucaslehmer, riesel
+    export ismersenneprime, isrieselprime
 
     using Base: BitSigned
     using Base.Checked.checked_neg
@@ -389,20 +389,20 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
 end
 
 """
-    lucaslehmer(P::Integer, [s::Integer = 4]) -> Bool
+    ismersenneprime(P::Integer, [s::Integer = 4]) -> Bool
 
 Lucas-Lehmer test for primes of the form 2^P - 1, also known as Mersenne primes.
 Returns `true` if 2^P - 1 is prime, and `false` otherwise.
 
 ```jldoctest
-julia> lucaslehmer(11)
+julia> ismersenneprime(11)
 false
 
-julia> lucaslehmer(13)
+julia> ismersenneprime(13)
 true
 ```
 """
-function lucaslehmer(P::Integer, s::Integer = BigInt(4))
+function ismersenneprime(P::Integer, s::Integer = BigInt(4))
     P < 3 && throw(ArgumentError("The condition P ≥ 3 must be met."))
     M = BigInt(2)^P - 1
     for i in 1:(P - 2)
@@ -412,30 +412,30 @@ function lucaslehmer(P::Integer, s::Integer = BigInt(4))
 end
 
 """
-    riesel(k::Integer, n::Integer) -> Bool
+    isrieselprime(k::Integer, n::Integer) -> Bool
 
 Lucas-Lehmer-Riesel primality test for N of form N = k * 2^n - 1,
-with 0 < k < 2^n and n > 0.
+with 0 < k < 2^n and n > 0, also known as Riesel primes.
 Returns `true` if k * 2^n - 1 is prime, and `false` otherwise or
 if the combination of k and n is not supported.
 
 ```jldoctest
-julia> riesel(1, 11)  # == lucaslehmer(11)
+julia> isrieselprime(1, 11)  # == ismersenneprime(11)
 false
 
-julia> riesel(3, 607)
+julia> isrieselprime(3, 607)
 true
 ```
 """
-function riesel(k::Integer, n::Integer)
-    0 < k < BigInt(2)^n || throw(ArgumentError("The condition 0 < k < 2^n must be met."))
-    if k == 1 && n & 1 == 1
-        return n % 4 == 3 ? lucaslehmer(n, BigInt(3)) : lucaslehmer(n)
+function isrieselprime(k::Integer, n::Integer)
+    0 < k && ndigits(k,2) ≤ n || throw(ArgumentError("The condition 0 < k < 2^n must be met."))
+    if k == 1 && isodd(n)
+        return n % 4 == 3 ? ismersenneprime(n, BigInt(3)) : ismersenneprime(n)
     elseif k == 3 && (n % 4) % 3 == 0
-        return lucaslehmer(n, BigInt(5778))
+        return ismersenneprime(n, BigInt(5778))
     else
-        # TODO: Implement a case for (k % 6) % 4 == 1 && (k * 2^n - 1) % 3 > 0
-        throw(ArgumentError("The LLR test is not currently implemented for numbers of this form."))
+        # TODO: Implement a case for (k % 6) % 4 == 1 && ((k % 3) * powermod(2, n, 3)) % 3 < 2
+        error("The LLR test is not currently implemented for numbers of this form.")
     end
 end
 
