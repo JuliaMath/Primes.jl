@@ -6,11 +6,13 @@ if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
     else
-        # Primal functions (previous Base)
         export isprime, primes, primesmask, factor
     end
-    # Additional functions (non-Base)
-    export ismersenneprime, isrieselprime
+
+    export MersenneNumber, RieselNumber
+    export Mersenne, Riesel
+    export BigMersenne, BigRiesel
+    export mersenne, riesel, bigmersenne, bigriesel
 
     using Base: BitSigned
     using Base.Checked.checked_neg
@@ -388,55 +390,167 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
     end
 end
 
-"""
-    ismersenneprime(P::Integer, [s::Integer = 4]) -> Bool
+abstract MersenneNumber
+abstract RieselNumber
 
-Lucas-Lehmer test for primes of the form 2^P - 1, also known as Mersenne primes.
-Returns `true` if 2^P - 1 is prime, and `false` otherwise.
+immutable Mersenne <: MersenneNumber
+    p::Int16
 
-```jldoctest
-julia> ismersenneprime(11)
-false
+    """
+        Mersenne(p::Integer) -> Mersenne
 
-julia> ismersenneprime(13)
-true
-```
-"""
-function ismersenneprime(P::Integer, s::Integer = BigInt(4))
-    P < 3 && throw(ArgumentError("The condition P ≥ 3 must be met."))
-    M = BigInt(2)^P - 1
-    for i in 1:(P - 2)
-        s = (s^2 - 2) % M
+    Creates a `Mersenne` object, given the argument `p`, as in `M = 2^p - 1`.
+    Throws an error if `p` is not prime.
+    """
+    function Mersenne(p::Integer)
+        p > typemax(Int16) && throw(ArgumentError("The argument given is too big for `Mersenne`. Please use `BigMersenne` instead."))
+        return isprime(p) ? new(p) : throw(ArgumentError("The argument given is not a prime."))
     end
-    return s == 0
 end
 
 """
-    isrieselprime(k::Integer, n::Integer) -> Bool
+    mersenne(M::Integer) -> Mersenne
 
-Lucas-Lehmer-Riesel primality test for N of form N = k * 2^n - 1,
-with 0 < k < 2^n and n > 0, also known as Riesel primes.
-Returns `true` if k * 2^n - 1 is prime, and `false` otherwise or
-if the combination of k and n is not supported.
+Creates a `Mersenne` object, containing the exponent of `M = 2^p - 1`.
+Throws an error if given `M` is not a valid Mersenne number of the form 2^p - 1.
+"""
+function mersenne(M::Integer)
+    b = bin(M)
+    '0' in b && throw(ArgumentError("The argument given is not a Mersenne number.")) || (r = length(b))
+    return Mersenne(r)
+end
+
+immutable Riesel <: RieselNumber
+    k::Int64
+    n::Int16
+
+    """
+        Riesel(k::Integer, n::Integer) -> Riesel
+
+    Creates a `Riesel` object, given the arguments `k` and `Q`, as in `R = k * Q` and `Q = 2^n -1`.
+    """
+    function Riesel(k::Integer, n::Integer)
+        k > typemax(Int64) && throw(ArgumentError("The argument k given is too big for `Riesel`. Please use `BigRiesel` instead."))
+        n > typemax(Int16) && throw(ArgumentError("The argument n given is too big for `Riesel`. Please use `BigRiesel` instead."))
+        return new(k, n)
+    end
+end
+
+"""
+    riesel(k::Integer, Q::Integer) -> Riesel
+
+Creates a `Riesel` object, containing the coeficient of `R = k * Q` and `Q`.
+Throws an error if given `Q` is not of the form 2^n - 1.
+"""
+function riesel(k::Integer, Q::Integer)
+    b = bin(Q)
+    '0' in b && throw(ArgumentError("The arguments given do not result in a valid Riesel number.")) || (n = length(b))
+    return Riesel(k, n)
+end
+
+### Big types ###
+immutable BigMersenne <: MersenneNumber
+    p::BigInt
+
+    """
+        BigMersenne(p::Integer) -> BigMersenne
+
+    Creates a `BigMersenne` object, given the argument `p`, as in `M = 2^p - 1`.
+    Throws an error if `p` is not prime.
+    """
+    BigMersenne(p::Integer) = isprime(p) ? new(BigInt(p)) : throw(ArgumentError("The argument given is not a prime."))
+end
+
+"""
+    bigmersenne(M::Integer) -> BigMersenne
+
+Creates a `BigMersenne` object, containing the exponent of `M = 2^p - 1`.
+Throws an error if given `M` is not a valid Mersenne number of the form 2^p - 1.
+"""
+function bigmersenne(M::Integer)
+    b = bin(M)
+    '0' in b && throw(ArgumentError("The argument given is not a Mersenne number.")) || (r = length(b))
+    return BigMersenne(r)
+end
+
+immutable BigRiesel <: RieselNumber
+    k::BigInt
+    n::BigInt
+
+    """
+        BigRiesel(k::Integer, n::Integer) -> BigRiesel
+
+    Creates a `BigRiesel` object, given the arguments `k` and `Q`, as in `R = k * Q` and `Q = 2^n -1`.
+    """
+    BigRiesel(k::Integer, n::Integer) = new(BigInt(k), BigInt(n))
+end
+
+"""
+    bigriesel(k::Integer, Q::Integer) -> BigRiesel
+
+Creates a `BigRiesel` object, containing the coeficient of `R = k * Q` and `Q`.
+Throws an error if given `Q` is not of the form 2^n - 1.
+"""
+function bigriesel(k::Integer, Q::Integer)
+    b = bin(Q)
+    '0' in b && throw(ArgumentError("The arguments given do not result in a valid Riesel number.")) || (n = length(b))
+    return BigRiesel(k, n)
+end
+
+
+"""
+    isprime(M::MersenneNumber) -> Bool
+
+Lucas-Lehmer deterministic test for primes of the form
+`M = 2^p - 1`, also known as Mersenne primes.
+Returns `true` if given Mersenne number is prime, and `false` otherwise.
 
 ```jldoctest
-julia> isrieselprime(1, 11)  # == ismersenneprime(11)
+julia> isprime(Mersenne(11))
 false
 
-julia> isrieselprime(3, 607)
+julia> isprime(Mersenne(13))
 true
 ```
 """
-function isrieselprime(k::Integer, n::Integer)
-    0 < k && ndigits(k,2) ≤ n || throw(ArgumentError("The condition 0 < k < 2^n must be met."))
-    if k == 1 && isodd(n)
-        return n % 4 == 3 ? ismersenneprime(n, BigInt(3)) : ismersenneprime(n)
-    elseif k == 3 && (n % 4) % 3 == 0
-        return ismersenneprime(n, BigInt(5778))
+isprime(M::MersenneNumber) = ll_primecheck(M.p)
+
+"""
+    isprime(R::RieselNumber) -> Bool
+
+Lucas-Lehmer-Riesel deterinistic test for N of the form `N = k * 2^n - 1`,
+with `0 < k < 2^n` and n > 0, also known as Riesel primes.
+Returns `true` if R is prime, and `false` otherwise or
+if the combination of k and n is not supported.
+
+```jldoctest
+julia> isprime(Riesel(1, 11))  # == isprime(Mersenne(11))
+false
+
+julia> isprime(Riesel(3, 607))
+true
+```
+"""
+function isprime(R::RieselNumber)
+    0 < R.k && ndigits(R.k, 2) ≤ R.n || throw(ArgumentError("The condition 0 < k < 2^n must be met."))
+    if R.k == 1 && isodd(R.n)
+        return R.n % 4 == 3 ? ll_primecheck(R.n, BigInt(3)) : ll_primecheck(R.n)
+    elseif R.k == 3 && (R.n % 4) % 3 == 0
+        return ll_primecheck(R.n, BigInt(5778))
     else
         # TODO: Implement a case for (k % 6) % 4 == 1 && ((k % 3) * powermod(2, n, 3)) % 3 < 2
         error("The LLR test is not currently implemented for numbers of this form.")
     end
+end
+
+# LLR backend -- not for export
+function ll_primecheck(n::Integer, s::Integer = BigInt(4))
+    n < 3 && throw(ArgumentError("The condition p ≥ 3 must be met."))
+    x = BigInt(2)^n - 1
+    for i in 1:(n - 2)
+        s = (s^2 - 2) % x
+    end
+    return s == 0
 end
 
 end # module
