@@ -237,11 +237,13 @@ end
 @test factor(1) == Dict{Int,Int}()
 
 # Lucas-Lehmer
+@test Mersenne(11) == mersenne(2^11 - 1)
 @test !isprime(Mersenne(11))
 @test isprime(Mersenne(13))
 @test_throws ArgumentError isprime(Mersenne(2))
 
 #  Lucas-Lehmer-Riesel
+@test Riesel(1, 13) == riesel(1, 2^13 - 1)
 @test_throws ArgumentError isprime(Riesel(1000, 9))
 @test_throws ArgumentError isprime(Riesel(0, 1))
 @test isprime(Riesel(1, 13)) == isprime(Mersenne(13)) # Case #1

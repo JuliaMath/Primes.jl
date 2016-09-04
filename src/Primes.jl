@@ -9,11 +9,6 @@ if VERSION >= v"0.5.0-dev+4340"
         export isprime, primes, primesmask, factor
     end
 
-    export MersenneNumber, RieselNumber
-    export Mersenne, Riesel
-    export BigMersenne, BigRiesel
-    export mersenne, riesel, bigmersenne, bigriesel
-
     using Base: BitSigned
     using Base.Checked.checked_neg
 else
@@ -25,6 +20,10 @@ else
     end
 end
 
+export MersenneNumber, RieselNumber
+export Mersenne, Riesel
+export BigMersenne, BigRiesel
+export mersenne, riesel, bigmersenne, bigriesel
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
@@ -434,7 +433,7 @@ immutable Riesel <: RieselNumber
     """
         Riesel(k::Integer, n::Integer) -> Riesel
 
-    Creates a `Riesel` object, given the arguments `k` and `Q`, as in `R = k * Q` and `Q = 2^n -1`.
+    Creates a `Riesel` object, given the arguments `k` and `Q`, as in `R = k * Q` and `Q = 2^n - 1`.
     """
     function Riesel(k::Integer, n::Integer)
         k > typemax(Int64) && throw(ArgumentError("The argument k given is too big for `Riesel`. Please use `BigRiesel` instead."))
@@ -487,7 +486,7 @@ immutable BigRiesel <: RieselNumber
     """
         BigRiesel(k::Integer, n::Integer) -> BigRiesel
 
-    Creates a `BigRiesel` object, given the arguments `k` and `Q`, as in `R = k * Q` and `Q = 2^n -1`.
+    Creates a `BigRiesel` object, given the arguments `k` and `n`, as in `R = k * Q` and `Q = 2^n - 1`.
     """
     BigRiesel(k::Integer, n::Integer) = new(BigInt(k), BigInt(n))
 end
@@ -525,7 +524,7 @@ isprime(M::MersenneNumber) = ll_primecheck(M.p)
 """
     isprime(R::RieselNumber) -> Bool
 
-Lucas-Lehmer-Riesel deterinistic test for N of the form `N = k * 2^n - 1`,
+Lucas-Lehmer-Riesel deterministic test for N of the form `N = k * 2^n - 1`,
 with `0 < k < 2^n` and n > 0, also known as Riesel primes.
 Returns `true` if R is prime, and `false` otherwise or
 if the combination of k and n is not supported.
