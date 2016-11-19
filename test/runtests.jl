@@ -244,6 +244,6 @@ end
 #  Lucas-Lehmer-Riesel
 @test_throws ArgumentError isrieselprime(1000, 511)
 @test_throws ArgumentError isrieselprime(0, 1)
-@test isrieselprime(1, 8191) == ismersenneprime(8191) == isprime(8191, T=lucaslehmer) == isprime(8191, T=riesel) # Case 1
+@test isrieselprime(1, 8191) == ismersenneprime(8191)  # Case 1
 @test isrieselprime(3, BigInt(2)^607 - 1)              # Case 2
 @test_throws ErrorException isrieselprime(20, 31)      # Case `else`

@@ -2,8 +2,6 @@
 __precompile__()
 module Primes
 
-@enum PrimeTest gentest lucaslehmer riesel
-
 if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
@@ -11,12 +9,9 @@ if VERSION >= v"0.5.0-dev+4340"
         export isprime, primes, primesmask, factor
     end
 
-    for s in instances(PrimeTest) @eval export $(Symbol(s)) end
-
     using Base: BitSigned
     using Base.Checked.checked_neg
 else
-    for s in instances(PrimeTest) @eval export $(symbol(s)) end
     typealias BitSigned Union{Int128,Int16,Int32,Int64,Int8}
     function checked_neg(x::Integer)
         y = -x
@@ -145,25 +140,16 @@ primes(n::Int) = primes(1, n)
 const PRIMES = primes(2^16)
 
 """
-    isprime(n::Integer; [k::Integer = 0, T::PrimeTest = gentest]) -> Bool
+    isprime(n::Integer) -> Bool
 
-Returns `true` if `n` is prime, and `false` otherwise. Keyword arguments, `k` for multiplication
-of `n` in special cases (like Lucas-Lehmer-Riesel test) and `T` for the specification of a
-prime test, if needed for improvements.
+Returns `true` if `n` is prime, and `false` otherwise.
 
 ```julia
 julia> isprime(3)
 true
-
-julia> isprime(8191, T=lucaslehmer)
-true
 ```
 """
-function isprime(n::Integer; k::Integer = 1, T::PrimeTest = gentest)
-    # Run special tests
-    T == lucaslehmer && return ismersenneprime(n)
-    T == riesel && return isrieselprime(k, n)
-
+function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
