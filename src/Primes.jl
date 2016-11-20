@@ -22,8 +22,6 @@ end
 
 export ismersenneprime, isrieselprime
 
-# Prime tests enum and export
-
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
 #     https://en.wikipedia.org/wiki/Wheel_factorization
@@ -433,7 +431,7 @@ true
 ```
 """
 function isrieselprime(k::Integer, Q::Integer)
-    n = length(bin(Q))
+    n = ndigits(Q, 2)
     0 < k < Q || throw(ArgumentError("The condition 0 < k < Q must be met."))
     if k == 1 && isodd(n)
         return n % 4 == 3 ? ll_primecheck(Q, 3) : ll_primecheck(Q)
@@ -447,7 +445,7 @@ end
 
 # LL backend -- not for export
 function ll_primecheck(X::Integer, s::Integer = 4)
-    S, N = BigInt(s), BigInt(length(bin(X)))
+    S, N = BigInt(s), BigInt(ndigits(X, 2))
     X < 7 && throw(ArgumentError("The condition X ≥ 7 must be met."))
     for i in 1:(N - 2)
         S = (S^2 - 2) % X
