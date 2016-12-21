@@ -2,6 +2,8 @@
 __precompile__()
 module Primes
 
+using Compat
+
 if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
@@ -217,9 +219,9 @@ const bases = UInt16[
 ]
 
 function _witnesses(n::UInt64)
-    i = ((n >> 16) $ n) * 0x45d9f3b
-    i = ((i >> 16) $ i) * 0x45d9f3b
-    i = ((i >> 16) $ i) & 255 + 1
+    i = xor((n >> 16), n) * 0x45d9f3b
+    i = xor((i >> 16), i) * 0x45d9f3b
+    i = xor((i >> 16), i) & 255 + 1
     @inbounds return (Int(bases[i]),)
 end
 witnesses(n::Integer) =
