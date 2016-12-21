@@ -2,6 +2,8 @@
 __precompile__()
 module Primes
 
+using Compat
+
 if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
