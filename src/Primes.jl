@@ -217,9 +217,9 @@ const bases = UInt16[
 ]
 
 function _witnesses(n::UInt64)
-    i = ((n >> 16) $ n) * 0x45d9f3b
-    i = ((i >> 16) $ i) * 0x45d9f3b
-    i = ((i >> 16) $ i) & 255 + 1
+    i = ((n >> 16) ⊻ n) * 0x45d9f3b
+    i = ((i >> 16) ⊻ i) * 0x45d9f3b
+    i = ((i >> 16) ⊻ i) & 255 + 1
     @inbounds return (Int(bases[i]),)
 end
 witnesses(n::Integer) =
