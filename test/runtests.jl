@@ -185,7 +185,7 @@ for n = 1:100
 end
 
 let i = rand(1:2^(3 * min(Sys.WORD_SIZE,64) ÷ 4))
-    @test primes(i, i + 300) == filter(isprime, i:(i + 300)) == filter(isprime, big(i:(i + 300)))
+    @test primes(i, i + 300) == filter(isprime, i:(i + 300)) == filter(isprime, big(i):big(i + 300))
 end
 
 

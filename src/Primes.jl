@@ -4,6 +4,10 @@ module Primes
 
 using Compat
 
+if isdefined(Base, :Iterators)
+    import Base.Iterators: repeated
+end
+
 if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
@@ -354,8 +358,14 @@ factor{T<:Any}(::Type{T}, n) = throw(MethodError(factor, (T, n)))
 
 function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
     while true
-        local c::T = rand(1:(n - 1)), G::T = 1, r::K = 1, y::T = rand(0:(n - 1)), m::K = 1900
-        local ys::T, q::T = 1, x::T
+        c::T = rand(1:(n - 1))
+        G::T = 1
+        r::K = 1
+        y::T = rand(0:(n - 1))
+        m::K = 1900
+        ys::T = 0
+        q::T = 1
+        x::T = 0
         while c == n - 2
             c = rand(1:(n - 1))
         end
@@ -365,7 +375,7 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
                 y = y^2 % n
                 y = (y + c) % n
             end
-            local k::K = 0
+            k::K = 0
             G = 1
             while k < r && G == 1
                 for i in 1:(m > (r - k) ? (r - k) : m)
