@@ -49,9 +49,9 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Base.factor",
+    "location": "api.html#Primes.factor",
     "page": "Functions",
-    "title": "Base.factor",
+    "title": "Primes.factor",
     "category": "Function",
     "text": "factor(n::Integer) -> Dict\n\nCompute the prime factorization of an integer n. Returns a dictionary. The keys of the dictionary correspond to the factors, and hence are of the same type as n. The value associated with each key indicates the number of times the factor appears in the factorization.\n\njulia> factor(100) # == 2^2 * 5^2\nDict{Int64,Int64} with 2 entries:\n  2 => 2\n  5 => 2\n\nFor convenience, a negative number n is factored as -1*(-n) (i.e. -1 is considered to be a factor), and 0 is factored as 0^1:\n\njulia> factor(-9) # == -1 * 3^2\nDict{Int64,Int64} with 2 entries:\n  -1 => 1\n   3 => 2\n\njulia> factor(0)\nDict{Int64,Int64} with 1 entries:\n  0 => 1\n\n\n\nfactor(ContainerType, n::Integer) -> ContainerType\n\nReturn the factorization of n stored in a ContainerType, which must be a subtype of Associative or AbstractArray, a Set, or an IntSet.\n\njulia> factor(DataStructures.SortedDict, 100)\nDataStructures.SortedDict{Int64,Int64,Base.Order.ForwardOrdering} with 2 entries:\n  2 => 2\n  5 => 2\n\nWhen ContainerType <: AbstractArray, this returns the list of all prime factors of n with multiplicities, in sorted order.\n\njulia> factor(Vector, 100)\n4-element Array{Int64,1}:\n 2\n 2\n 5\n 5\n\njulia> prod(factor(Vector, 100)) == 100\ntrue\n\nWhen ContainerType == Set, this returns the distinct prime factors as a set.\n\njulia> factor(Set, 100)\nSet([2,5])\n\n\n\n"
 },
@@ -65,9 +65,9 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Base.primes",
+    "location": "api.html#Primes.primes",
     "page": "Functions",
-    "title": "Base.primes",
+    "title": "Primes.primes",
     "category": "Function",
     "text": "primes([lo,] hi)\n\nReturns a collection of the prime numbers (from lo, if specified) up to hi.\n\n\n\n"
 },
@@ -81,17 +81,17 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Base.isprime",
+    "location": "api.html#Primes.isprime",
     "page": "Functions",
-    "title": "Base.isprime",
+    "title": "Primes.isprime",
     "category": "Function",
     "text": "isprime(x::Integer) -> Bool\n\nReturns true if x is prime, and false otherwise.\n\njulia> isprime(3)\ntrue\n\n\n\nisprime(x::BigInt, [reps = 25]) -> Bool\n\nProbabilistic primality test. Returns true if x is prime with high probability (pseudoprime); and false if x is composite (not prime). The false positive rate is about 0.25^reps. reps = 25 is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).\n\njulia> isprime(big(3))\ntrue\n\n\n\n"
 },
 
 {
-    "location": "api.html#Base.primesmask",
+    "location": "api.html#Primes.primesmask",
     "page": "Functions",
-    "title": "Base.primesmask",
+    "title": "Primes.primesmask",
     "category": "Function",
     "text": "primesmask([lo,] hi)\n\nReturns a prime sieve, as a BitArray, of the positive integers (from lo, if specified) up to hi. Useful when working with either primes or composite numbers.\n\n\n\n"
 },
