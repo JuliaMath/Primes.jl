@@ -18,7 +18,7 @@ if VERSION >= v"0.5.0-dev+4340"
     using Base: BitSigned
     using Base.Checked.checked_neg
 else
-    typealias BitSigned Union{Int128,Int16,Int32,Int64,Int8}
+    const BitSigned = Union{Int128,Int16,Int32,Int64,Int8}
     function checked_neg(x::Integer)
         y = -x
         (y < 0) == (x < 0) && throw(OverflowError())
