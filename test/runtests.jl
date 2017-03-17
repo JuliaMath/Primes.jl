@@ -2,7 +2,7 @@ using Primes
 using Base.Test
 using DataStructures: SortedDict
 
-import Primes: isprime, primes, primesmask, factor
+import Primes: isprime, primes, primesmask, factor, ismersenneprime, isrieselprime
 
 @test primes(10000) == primes(2, 10000) == [
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
@@ -235,3 +235,15 @@ end
 @test factor(typemin(Int128)) == Dict(-1 => 1, 2 => 127)
 
 @test factor(1) == Dict{Int,Int}()
+
+# Lucas-Lehmer
+@test !ismersenneprime(2047)
+@test ismersenneprime(8191)
+@test_throws ArgumentError ismersenneprime(3)
+
+#  Lucas-Lehmer-Riesel
+@test_throws ArgumentError isrieselprime(1000, 511)
+@test_throws ArgumentError isrieselprime(0, 1)
+@test isrieselprime(1, 8191) == ismersenneprime(8191)  # Case 1
+@test isrieselprime(3, BigInt(2)^607 - 1)              # Case 2
+@test_throws ErrorException isrieselprime(20, 31)      # Case `else`

@@ -26,6 +26,7 @@ else
     end
 end
 
+export ismersenneprime, isrieselprime
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
@@ -143,9 +144,9 @@ primes(n::Int) = primes(1, n)
 const PRIMES = primes(2^16)
 
 """
-    isprime(x::Integer) -> Bool
+    isprime(n::Integer) -> Bool
 
-Returns `true` if `x` is prime, and `false` otherwise.
+Returns `true` if `n` is prime, and `false` otherwise.
 
 ```julia
 julia> isprime(3)
@@ -402,6 +403,66 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             return h
         end
     end
+end
+
+"""
+    ismersenneprime(M::Integer; [check::Bool = true]) -> Bool
+
+Lucas-Lehmer deterministic test for primes of the form
+`M = 2^p - 1`, also known as Mersenne primes. Use keyword argument `check`
+to enable/disable check for `M` is a valid Mersenne number; to be used with caution.
+Returns `true` if given Mersenne number is prime, and `false` otherwise.
+
+```jldoctest
+julia> ismersenneprime(2^11 - 1)
+false
+
+julia> ismersenneprime(2^13 - 1)
+true
+```
+"""
+function ismersenneprime(M::Integer; check::Bool = true)
+    (check && isprime(length(bin(M)))) || throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
+    return ll_primecheck(M)
+end
+
+"""
+    isrieselprime(k::Integer, Q::Integer) -> Bool
+
+Lucas-Lehmer-Riesel deterministic test for N of the form `N = k * Q`,
+with `0 < k < Q`, `Q = 2^n - 1` and `n > 0`, also known as Riesel primes.
+Returns `true` if `R` is prime, and `false` otherwise or
+if the combination of k and n is not supported.
+
+```jldoctest
+julia> isrieselprime(1, 2^11 - 1)  # == ismersenneprime(2^11 - 1)
+false
+
+julia> isrieselprime(3, 2^607 - 1)
+true
+```
+"""
+function isrieselprime(k::Integer, Q::Integer)
+    n = ndigits(Q, 2)
+    0 < k < Q || throw(ArgumentError("The condition 0 < k < Q must be met."))
+    if k == 1 && isodd(n)
+        return n % 4 == 3 ? ll_primecheck(Q, 3) : ll_primecheck(Q)
+    elseif k == 3 && (n % 4) % 3 == 0
+        return ll_primecheck(Q, 5778)
+    else
+        # TODO: Implement a case for (k % 6) % 4 == 1 && ((k % 3) * powermod(2, n, 3)) % 3 < 2
+        error("The LLR test is not currently implemented for numbers of this form.")
+    end
+end
+
+# LL backend -- not for export
+function ll_primecheck(X::Integer, s::Integer = 4)
+    S, N = BigInt(s), BigInt(ndigits(X, 2))
+    X < 7 && throw(ArgumentError("The condition X ≥ 7 must be met."))
+    for i in 1:(N - 2)
+        S = (S^2 - 2) % X
+    end
+    return S == 0
 end
 
 end # module
