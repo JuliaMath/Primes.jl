@@ -2,13 +2,13 @@ using Documenter, Primes
 
 makedocs(
     modules = [Primes],
-    format = Documenter.Formats.HTML,
+    clean = false,
+    format = :html,
     sitename = "Primes.jl",
     pages = Any[
         "Home" => "index.md",
         "Functions" => "api.md"
     ],
-    doctest = false,
 )
 
 deploydocs(
