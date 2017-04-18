@@ -239,7 +239,6 @@ end
 # Lucas-Lehmer
 @test !ismersenneprime(2047)
 @test ismersenneprime(8191)
-@test_throws ArgumentError ismersenneprime(3)
 @test_throws ArgumentError ismersenneprime(9)
 @test_throws ArgumentError ismersenneprime(9, check=true)
 # test the following does not throw
