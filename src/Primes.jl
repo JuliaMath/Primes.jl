@@ -8,6 +8,8 @@ if isdefined(Base, :Iterators)
     import Base.Iterators: repeated
 end
 
+include("factorization.jl")
+
 if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
@@ -282,35 +284,35 @@ end
 
 
 """
-    factor(n::Integer) -> Dict
+    factor(n::Integer) -> Primes.Factorization
 
-Compute the prime factorization of an integer `n`. Returns a dictionary. The
-keys of the dictionary correspond to the factors, and hence are of the same type as `n`.
-The value associated with each key indicates the number of times the factor appears in the
-factorization.
+Compute the prime factorization of an integer `n`. Return a sorted
+dictionary (with specialized printing) whose keys correspond to the
+factors, and hence are of the same type as `n`. The value associated
+with each key indicates the multiplicity (i.e. the number of times the
+factor appears in the factorization).
 
 ```julia
-julia> factor(100) # == 2^2 * 5^2
-Dict{Int64,Int64} with 2 entries:
-  2 => 2
-  5 => 2
+julia> factor(100)
+2^2 ⋅ 5^2
 ```
 
 For convenience, a negative number `n` is factored as `-1*(-n)` (i.e. `-1` is considered
 to be a factor), and `0` is factored as `0^1`:
 
 ```julia
-julia> factor(-9) # == -1 * 3^2
-Dict{Int64,Int64} with 2 entries:
-  -1 => 1
-   3 => 2
+julia> factor(-9)
+-1 ⋅ 3^2
 
 julia> factor(0)
-Dict{Int64,Int64} with 1 entries:
-  0 => 1
+0
+
+julia> collect(factor(0))
+1-element Array{Pair{Int64,Int64},1}:
+ 0=>1
 ```
 """
-factor{T<:Integer}(n::T) = factor!(n, Dict{T,Int}())
+factor{T<:Integer}(n::T) = factor!(n, Factorization{T}())
 
 
 """
@@ -352,7 +354,7 @@ Set([2,5])
 factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor!(n, D(Dict{T,Int}()))
 factor{T<:Integer, A<:AbstractArray}(::Type{A}, n::T) = A(factor(Vector{T}, n))
 factor{T<:Integer}(::Type{Vector{T}}, n::T) =
-    sort!(mapreduce(collect, vcat, Vector{T}(), [repeated(k, v) for (k, v) in factor(n)]))
+    mapreduce(collect, vcat, Vector{T}(), [repeated(k, v) for (k, v) in factor(n)])
 factor{T<:Integer, S<:Union{Set,IntSet}}(::Type{S}, n::T) = S(keys(factor(n)))
 factor{T<:Any}(::Type{T}, n) = throw(MethodError(factor, (T, n)))
 

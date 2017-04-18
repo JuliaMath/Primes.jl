@@ -214,7 +214,7 @@ for V in (Vector, Vector{Int}, Vector{Int128})
 end
 
 # factor with non-default associative containers
-@test factor(SortedDict, 100) == factor(Dict, 100)
+@test factor(SortedDict, 100) == factor(Dict, 100) == factor(100)
 
 # factor sets
 @test factor(Set, 100) == Set([2, 5])
@@ -235,6 +235,9 @@ end
 @test factor(typemin(Int128)) == Dict(-1 => 1, 2 => 127)
 
 @test factor(1) == Dict{Int,Int}()
+
+# factor returns a sorted dict
+@test all(issorted(collect(factor(rand(Int)))) for x in 1:100)
 
 # Lucas-Lehmer
 @test !ismersenneprime(2047)
