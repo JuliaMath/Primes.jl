@@ -16,5 +16,6 @@ Primes.primes
 
 ```@docs
 Primes.isprime
+Primes.ismersenneprime
 Primes.primesmask
 ```
