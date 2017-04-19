@@ -85,7 +85,15 @@ var documenterSearchIndex = {"docs": [
     "page": "Functions",
     "title": "Primes.isprime",
     "category": "Function",
-    "text": "isprime(x::Integer) -> Bool\n\nReturns true if x is prime, and false otherwise.\n\njulia> isprime(3)\ntrue\n\n\n\nisprime(x::BigInt, [reps = 25]) -> Bool\n\nProbabilistic primality test. Returns true if x is prime with high probability (pseudoprime); and false if x is composite (not prime). The false positive rate is about 0.25^reps. reps = 25 is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).\n\njulia> isprime(big(3))\ntrue\n\n\n\n"
+    "text": "isprime(n::Integer) -> Bool\n\nReturns true if n is prime, and false otherwise.\n\njulia> isprime(3)\ntrue\n\n\n\nisprime(x::BigInt, [reps = 25]) -> Bool\n\nProbabilistic primality test. Returns true if x is prime with high probability (pseudoprime); and false if x is composite (not prime). The false positive rate is about 0.25^reps. reps = 25 is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).\n\njulia> isprime(big(3))\ntrue\n\n\n\n"
+},
+
+{
+    "location": "api.html#Primes.ismersenneprime",
+    "page": "Functions",
+    "title": "Primes.ismersenneprime",
+    "category": "Function",
+    "text": "ismersenneprime(M::Integer; [check::Bool = true]) -> Bool\n\nLucas-Lehmer deterministic test for primes of the form M = 2^p - 1, also known as Mersenne primes. Use keyword argument check to enable/disable check for M is a valid Mersenne number; to be used with caution. Returns true if given Mersenne number is prime, and false otherwise.\n\njulia> ismersenneprime(2^11 - 1)\nfalse\n\njulia> ismersenneprime(2^13 - 1)\ntrue\n\n\n\n"
 },
 
 {
@@ -101,7 +109,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Functions",
     "title": "Identifying prime numbers",
     "category": "section",
-    "text": "Primes.isprime\nPrimes.primesmask"
+    "text": "Primes.isprime\nPrimes.ismersenneprime\nPrimes.primesmask"
 },
 
 ]}
