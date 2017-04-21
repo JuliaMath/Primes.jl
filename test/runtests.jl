@@ -237,7 +237,7 @@ end
 @test factor(1) == Dict{Int,Int}()
 
 # factor returns a sorted dict
-@test all(issorted(collect(factor(rand(Int)))) for x in 1:100)
+@test all([issorted(collect(factor(rand(Int)))) for x in 1:100])
 
 # Lucas-Lehmer
 @test !ismersenneprime(2047)
