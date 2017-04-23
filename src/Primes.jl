@@ -286,8 +286,8 @@ end
 """
     factor(n::Integer) -> Primes.Factorization
 
-Compute the prime factorization of an integer `n`. Return a sorted
-dictionary (with specialized printing) whose keys correspond to the
+Compute the prime factorization of an integer `n`. Returns a `Factorization`
+object, which is an associative collection whose keys correspond to the
 factors, and hence are of the same type as `n`. The value associated
 with each key indicates the multiplicity (i.e. the number of times the
 factor appears in the factorization).
