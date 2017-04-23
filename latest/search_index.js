@@ -93,7 +93,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Functions",
     "title": "Primes.ismersenneprime",
     "category": "Function",
-    "text": "ismersenneprime(M::Integer; [check::Bool = true]) -> Bool\n\nLucas-Lehmer deterministic test for primes of the form M = 2^p - 1, also known as Mersenne primes. Use keyword argument check to enable/disable check for M is a valid Mersenne number; to be used with caution. Returns true if given Mersenne number is prime, and false otherwise.\n\njulia> ismersenneprime(2^11 - 1)\nfalse\n\njulia> ismersenneprime(2^13 - 1)\ntrue\n\n\n\n"
+    "text": "ismersenneprime(M::Integer; [check::Bool = true]) -> Bool\n\nLucas-Lehmer deterministic test for Mersenne primes. M must be a Mersenne number, i.e. of the form M = 2^p - 1, where p is a prime number. Use the keyword argument check to enable/disable checking whether M is a valid Mersenne number; to be used with caution. Return true if the given Mersenne number is prime, and false otherwise.\n\njulia> ismersenneprime(2^11 - 1)\nfalse\n\njulia> ismersenneprime(2^13 - 1)\ntrue\n\n\n\n"
 },
 
 {
