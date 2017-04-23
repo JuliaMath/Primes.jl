@@ -408,10 +408,12 @@ end
 """
     ismersenneprime(M::Integer; [check::Bool = true]) -> Bool
 
-Lucas-Lehmer deterministic test for primes of the form
-`M = 2^p - 1`, also known as Mersenne primes. Use keyword argument `check`
-to enable/disable check for `M` is a valid Mersenne number; to be used with caution.
-Returns `true` if given Mersenne number is prime, and `false` otherwise.
+Lucas-Lehmer deterministic test for Mersenne primes. `M` must be a
+Mersenne number, i.e. of the form `M = 2^p - 1`, where `p` is a prime
+number. Use the keyword argument `check` to enable/disable checking
+whether `M` is a valid Mersenne number; to be used with caution.
+Return `true` if the given Mersenne number is prime, and `false`
+otherwise.
 
 ```jldoctest
 julia> ismersenneprime(2^11 - 1)
@@ -422,7 +424,12 @@ true
 ```
 """
 function ismersenneprime(M::Integer; check::Bool = true)
-    (check && isprime(length(bin(M)))) || throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
+    if check
+        d = ndigits(M, 2)
+        M >= 0 && isprime(d) && (M >> d == 0) ||
+            throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
+    end
+    M < 7 && return M == 3
     return ll_primecheck(M)
 end
 
