@@ -286,9 +286,9 @@ end
 """
     factor(n::Integer) -> Primes.Factorization
 
-Compute the prime factorization of an integer `n`. Returns a `Factorization`
-object, which is an associative collection whose keys correspond to the
-factors, and hence are of the same type as `n`. The value associated
+Compute the prime factorization of an integer `n`. The returned
+object, of type `Factorization`, is an associative container whose
+keys correspond to the factors, in sorted order. The value associated
 with each key indicates the multiplicity (i.e. the number of times the
 factor appears in the factorization).
 
