@@ -2,7 +2,7 @@ using Primes
 using Base.Test
 using DataStructures: SortedDict
 
-import Primes: isprime, primes, primesmask, factor, ismersenneprime, isrieselprime
+import Primes: isprime, primes, primesmask, factor, ismersenneprime, isrieselprime, Factorization
 
 @test primes(10000) == primes(2, 10000) == [
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
@@ -214,7 +214,7 @@ for V in (Vector, Vector{Int}, Vector{Int128})
 end
 
 # factor with non-default associative containers
-@test factor(SortedDict, 100) == factor(Dict, 100)
+@test factor(SortedDict, 100) == factor(Dict, 100) == factor(100)
 
 # factor sets
 @test factor(Set, 100) == Set([2, 5])
@@ -236,6 +236,9 @@ end
 
 @test factor(1) == Dict{Int,Int}()
 
+# factor returns a sorted dict
+@test all([issorted(collect(factor(rand(Int)))) for x in 1:100])
+
 # Lucas-Lehmer
 @test !ismersenneprime(2047)
 @test ismersenneprime(8191)
@@ -250,3 +253,25 @@ ismersenneprime(9, check=false)
 @test isrieselprime(1, 8191) == ismersenneprime(8191)  # Case 1
 @test isrieselprime(3, BigInt(2)^607 - 1)              # Case 2
 @test_throws ErrorException isrieselprime(20, 31)      # Case `else`
+
+# @testset "Factorization{$T} as an Associative" for T = (Int, UInt, BigInt)
+for T = (Int, UInt, BigInt)
+    d = Dict(map(Pair, rand(T(1):T(100), 30), 1:30))
+    f = Factorization{T}(d)
+    @test f == d == Dict(f) == Factorization(d) == convert(Factorization, d)
+    @test collect(f) == sort!(collect(d)) # test start/next/done
+    @test length(f) == length(d)
+    @test get(f, T(101), nothing) == nothing
+    @test f[101] == 0
+    @test f[0] == 0
+    f[0] = 1
+    @test get(f, T(0), 0) == 1
+    @test f[0] == 1
+    @test f[101] == 0
+    f = Factorization{T}()
+    for i in 100:-1:1
+        f[T(i)] = i
+    end
+    @test length(f) == 100
+    @test issorted(f.pe)
+end
