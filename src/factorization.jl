@@ -8,11 +8,13 @@ immutable Factorization{T<:Integer} <: Associative{T, Int}
     (::Type{Factorization{T}}){T<:Integer}() = new{T}(Vector{Pair{T, Int}}())
 end
 
-function (::Type{Factorization{T}}){T<:Integer}(d::Associative)
+function (::Type{Factorization{T}}){T<:Integer}(d::Union{Associative,Tuple{Vararg{Pair{T,Int}}}})
     f = Factorization{T}()
     append!(f.pe, sort!(collect(d)))
     f
 end
+
+(::Type{Factorization}){T<:Integer}(pe::Pair{T,Int}...) = Factorization{T}(pe)
 
 Base.convert{T}(::Type{Factorization}, d::Associative{T}) = Factorization{T}(d)
 

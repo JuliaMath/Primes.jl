@@ -267,7 +267,9 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             isprime(n) && (h[n] = 1; return h)
         end
     end
-    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
+    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ?
+        pollardfactors!(n, h) :
+        pollardfactors!(widen(n), h)
 end
 
 
@@ -385,7 +387,7 @@ julia> radical(2*2*3)
 """
 radical(n) = prod(factor(Set, n))
 
-function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
+function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}, multiplicity=1)
     while true
         c::T = rand(1:(n - 1))
         G::T = 1
@@ -425,10 +427,42 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             G = gcd(x > ys ? x - ys : ys - x, n)
         end
         if G != n
-            isprime(G) ? h[G] = get(h, G, 0) + 1 : pollardfactors!(G, h)
-            G2 = div(n,G)
-            isprime(G2) ? h[G2] = get(h, G2, 0) + 1 : pollardfactors!(G2, h)
+            recurse_with_subfactors!(G, div(n, G), h,
+                                     multiplicity, pollardfactors!)
             return h
+        end
+    end
+end
+
+# given two found non-trivial factors a and b=n/a of n, apply
+# recursively the algorithm (via `continuation!`) for the non-prime
+# factors, otherwise update the factors list `h`
+function recurse_with_subfactors!{T<:Integer}(a::T, b::T, h::Associative{T,Int}, multiplicity, continuation!)
+    if a == b
+        facts = Factorization(a => 2multiplicity)
+    else
+        d = gcd(a, b) # check if an easy smaller factor can be found
+        if d != 1
+            facts = Factorization(a÷d => multiplicity,
+                                  b÷d => multiplicity,
+                                  d   => 2multiplicity)
+        else
+            facts = Factorization(a => multiplicity, b => multiplicity)
+        end
+    end
+    pr = Set(f[1] for f in facts if isprime(f[1]))
+    for (f, mult) in facts
+        f == 1 && continue
+        if f in pr # f is prime
+            h[f] = get(h, f, 0) + mult
+        else
+            for p in pr # check if any of the known primes would divide f
+                while f % p == 0
+                    h[p] = get(h, p, 0) + mult
+                    f ÷= p
+                end
+            end
+            f != 1 && continuation!(f, h, mult)
         end
     end
 end
