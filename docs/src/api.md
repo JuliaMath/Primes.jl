@@ -10,6 +10,9 @@ Primes.factor
 
 ```@docs
 Primes.primes
+Primes.nextprime
+Primes.prevprime
+Primes.prime
 ```
 
 ## Identifying prime numbers

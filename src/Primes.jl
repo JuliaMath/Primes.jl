@@ -14,7 +14,7 @@ end
 using Base: BitSigned
 using Base.Checked.checked_neg
 
-export ismersenneprime, isrieselprime
+export ismersenneprime, isrieselprime, nextprime, prevprime, prime
 
 include("factorization.jl")
 
@@ -461,5 +461,123 @@ function ll_primecheck(X::Integer, s::Integer = 4)
     end
     return S == 0
 end
+
+# add_! : "may" mutate the Integer argument (only for BigInt currently)
+
+# modify a BigInt in-place
+function add_!(n::BigInt, x::Int)
+    if x < 0
+        ccall((:__gmpz_sub_ui, :libgmp), Void, (Ptr{BigInt}, Ptr{BigInt}, Culong), &n, &n, -x)
+    else
+        ccall((:__gmpz_add_ui, :libgmp), Void, (Ptr{BigInt}, Ptr{BigInt}, Culong), &n, &n, x)
+    end
+    n
+end
+
+# checked addition, without mutation
+add_!(n::Integer, x::Int) = Base.checked_add(n, oftype(n, x))
+
+"""
+    nextprime(n::Integer, i::Integer=1)
+
+The `i`-th smallest prime not less than `n` (in particular,
+`nextprime(p) == p` if `p` is prime). If `i < 0`, this is equivalent to
+prevprime(n, -i). Note that for `n::BigInt`, the returned number is
+only a pseudo-prime (the function [`isprime`](@ref) is used
+internally). See also [`prevprime`](@ref).
+
+```jldoctest
+julia> nextprime(4)
+5
+
+julia> nextprime(5)
+5
+
+julia> nextprime(4, 2)
+7
+
+julia> nextprime(5, 2)
+7
+```
+"""
+function nextprime(n::Integer, i::Integer=1)
+    i < 0 && return prevprime(n, -i)
+    i == 0 && throw(DomainError())
+    n < 2 && (n = oftype(n, 2))
+    if n == 2
+        if i <= 1
+            return n
+        else
+            n += one(n)
+            i -= 1
+        end
+    else
+        n += iseven(n)
+    end
+    # n can now be safely mutated
+    # @assert isodd(n) && n >= 3
+    while true
+        while !isprime(n)
+            n = add_!(n, 2)
+        end
+        i -= 1
+        i <= 0 && break
+        n = add_!(n, 2)
+    end
+    n
+end
+
+
+"""
+    prevprime(n::Integer, i::Integer=1)
+
+The `i`-th largest prime not greater than `n` (in particular
+`prevprime(p) == p` if `p` is prime). If `i < 0`, this is equivalent to
+`nextprime(n, -i)`. Note that for `n::BigInt`, the returned number is
+only a pseudo-prime (the function [`isprime`](@ref) is used internally). See
+also [`nextprime`](@ref).
+
+```jldoctest
+julia> prevprime(4)
+3
+
+julia> prevprime(5)
+5
+
+julia> prevprime(5, 2)
+3
+```
+"""
+function prevprime(n::Integer, i::Integer=1)
+    i <= 0 && return nextprime(n, -i)
+    n += zero(n) # deep copy of n, which is mutated below
+    while true
+        n < 2 && throw(ArgumentError("There is no prime less than or equal to $n"))
+        while !isprime(n)
+            n = add_!(n, -1)
+        end
+        i -= 1
+        i <= 0 && break
+        n = add_!(n, -1)
+    end
+    n
+end
+
+"""
+    prime{T}(::Type{T}=Int, i::Integer)
+
+The `i`-th prime number.
+
+```jldoctest
+julia> prime(1)
+2
+
+julia> prime(3)
+5
+
+```
+"""
+prime{T<:Integer}(::Type{T}, i::Integer) = i < 0 ? throw(DomainError()) : nextprime(T(2), i)
+prime(i::Integer) = prime(Int, i)
 
 end # module

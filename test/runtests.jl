@@ -275,3 +275,67 @@ for T = (Int, UInt, BigInt)
     @test length(f) == 100
     @test issorted(f.pe)
 end
+
+# check copy property for big primes relied upon in nextprime/prevprime
+for n = rand(big(-10):big(10), 10)
+    @test n+0 !== n
+end
+
+@testset "nextprime(::$T)" for T in (Int64, Int32, BigInt)
+    for N in zip(T[rand(-1000:1), 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                   2^20, 2^30],
+                 T[2, 2, 3, 5, 5, 7, 7, 11, 11, 11, 11, 13,
+                   1048583, 1073741827],
+                 T[3, 3, 5, 7, 7, 11, 11, 13, 13, 13, 13, 17,
+                   1048589, 1073741831])
+        @test nextprime(N[1]) == N[2]
+        @test nextprime(N[1], 1) == N[2]
+        @test nextprime(N[1], 2) == N[3]
+    end
+    @test nextprime(Int64(2)^60) == 1152921504606847009
+    @test nextprime(Int64(2)^60, 2) == 1152921504606847067
+    @test_throws DomainError nextprime(rand(-100:100), 0)
+    for i = rand(-100:-1, 100),
+        n = rand(600:2^20)
+        @test nextprime(n, i) == prevprime(n, -i)
+    end
+end
+
+@testset "prevprime(::$T)" for T in (Int64, Int32, BigInt)
+    for N in zip(T[4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+                   2^20, 2^30],
+                 T[3, 5, 5, 7, 7, 7, 7, 11, 11, 13, 13,
+                   1048573, 1073741789],
+                 T[2, 3, 3, 5, 5, 5, 5, 7, 7, 11, 11,
+                   1048571, 1073741783])
+        @test prevprime(N[1]) == N[2]
+        @test prevprime(N[1], 1) == N[2]
+        @test prevprime(N[1], 2) == N[3]
+    end
+    @test prevprime(Int64(2)^60) == 1152921504606846883
+    @test prevprime(Int64(2)^60, 2) == 1152921504606846869
+    @test prevprime(3) == 3
+    @test prevprime(3, 2) == 2
+    @test prevprime(2) == 2
+    @test_throws ArgumentError prevprime(2, 2)
+
+    @test_throws DomainError prevprime(rand(-100:100), 0)
+    for n = rand(-100:1, 10)
+        @test_throws ArgumentError prevprime(n)
+        @test_throws ArgumentError prevprime(n, 1)
+        @test_throws ArgumentError prevprime(n, 2)
+    end
+
+    for i = rand(-100:-1, 100),
+        n = rand(600:2^20)
+        @test prevprime(n, i) == nextprime(n, -i)
+    end
+end
+
+@testset "prime(::$T)" for T = (Int64, Int32, BigInt)
+    for (n, p) = zip([1, 2, 3, 4, 5, 6, 7, 100, 1000, 10000],
+                     T[2, 3, 5, 7, 11, 13, 17, 541, 7919, 104729])
+        @test prime(n) == p
+        @test prime(T, n) == p
+    end
+end
