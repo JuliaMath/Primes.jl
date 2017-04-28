@@ -339,3 +339,18 @@ end
         @test prime(T, n) == p
     end
 end
+
+for T in (Int, UInt, BigInt)
+    for n in rand(T(1):T(100000), 10)
+        for C = (Factorization, Vector, Dict)
+            @test prodfactors(factor(C, n)) == n
+        end
+        if Primes.radical(n) == n
+            for C = (Set, IntSet)
+                @test prodfactors(factor(C, n)) == n
+            end
+        end
+    end
+    @test prodfactors(factor(Set, T(123456))) == 3858
+    @test prod(factor(T(123456))) == 123456
+end

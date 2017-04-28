@@ -14,7 +14,7 @@ end
 using Base: BitSigned
 using Base.Checked.checked_neg
 
-export ismersenneprime, isrieselprime, nextprime, prevprime, prime
+export ismersenneprime, isrieselprime, nextprime, prevprime, prime, prodfactors, radical
 
 include("factorization.jl")
 
@@ -346,6 +346,44 @@ factor{T<:Integer}(::Type{Vector{T}}, n::T) =
 factor{T<:Integer, S<:Union{Set,IntSet}}(::Type{S}, n::T) = S(keys(factor(n)))
 factor{T<:Any}(::Type{T}, n) = throw(MethodError(factor, (T, n)))
 
+"""
+    prodfactors(factors)
+
+Compute `n` (or the radical of `n` when `factors` is of type `Set` or
+`IntSet`) where `factors` is interpreted as the result of
+`factor(typeof(factors), n)`. Note that if `factors` is of type
+`AbstractArray` or `Primes.Factorization`, then `prodfactors` is equivalent
+to `Base.prod`.
+
+```jldoctest
+julia> prodfactors(factor(100))
+100
+```
+"""
+function prodfactors end
+
+prodfactors(factors::Associative) = prod(p^i for (p, i) in factors)
+prodfactors(factors::Union{AbstractArray, Set, IntSet}) = prod(factors)
+
+"""
+    Base.prod(factors::Primes.Factorization{T}) -> T
+
+Compute `n` where `factors` is interpreted as the result of `factor(n)`.
+"""
+Base.prod(factors::Factorization) = prodfactors(factors)
+
+"""
+    radical(n::Integer)
+
+Compute the radical of `n`, i.e. the largest square-free divisor of `n`.
+This is equal to the product of the distinct prime numbers dividing `n`.
+
+```jldoctest
+julia> radical(2*2*3)
+6
+```
+"""
+radical(n) = prod(factor(Set, n))
 
 function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
     while true
