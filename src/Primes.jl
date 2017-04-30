@@ -14,7 +14,7 @@ if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
     else
-        export isprime, primes, primesmask, factor
+        export isprime, primes, primesmask, factor, totient
     end
 
     using Base: BitSigned
@@ -472,6 +472,35 @@ function ll_primecheck(X::Integer, s::Integer = 4)
         S = (S^2 - 2) % X
     end
     return S == 0
+end
+
+"""
+    totient(f::Factorization{T}) :: T
+
+Compute the Euler totient function of the number whose prime factorization is
+given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
+when the factorization can be reused for other purposes.
+"""
+function totient{T <: Integer}(f::Factorization{T})
+    result = one(T)
+    for (p, k) in f
+        result *= p^(k-1) * (p - 1)
+    end
+    result
+end
+
+"""
+    totient(n::Integer) :: Integer
+
+Compute the Euler totient function ``ϕ(n)``, which counts the number of
+positive integers relatively prime to ``n`` (that is, the number of positive
+integers `m` with `gcd(m, n) == 1`).
+"""
+function totient(n::Integer)
+    if iszero(n)
+        throw(ArgumentError("ϕ(0) is not defined"))
+    end
+    totient(factor(abs(n)))
 end
 
 end # module
