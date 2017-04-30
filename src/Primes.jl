@@ -14,7 +14,7 @@ if VERSION >= v"0.5.0-dev+4340"
     if isdefined(Base,:isprime)
         import Base: isprime, primes, primesmask, factor
     else
-        export isprime, primes, primesmask, factor, totient
+        export isprime, primes, primesmask, factor
     end
 
     using Base: BitSigned
@@ -28,7 +28,7 @@ else
     end
 end
 
-export ismersenneprime, isrieselprime
+export ismersenneprime, isrieselprime, totient
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
