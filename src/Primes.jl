@@ -475,7 +475,7 @@ function ll_primecheck(X::Integer, s::Integer = 4)
 end
 
 """
-    totient(f::Factorization{T}) :: T
+    totient(f::Factorization{T}) -> T
 
 Compute the Euler totient function of the number whose prime factorization is
 given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
@@ -490,7 +490,7 @@ function totient{T <: Integer}(f::Factorization{T})
 end
 
 """
-    totient(n::Integer) :: Integer
+    totient(n::Integer) -> Integer
 
 Compute the Euler totient function ``ϕ(n)``, which counts the number of
 positive integers relatively prime to ``n`` (that is, the number of positive
