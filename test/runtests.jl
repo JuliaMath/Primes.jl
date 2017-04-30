@@ -283,7 +283,7 @@ for T in [Int16, Int32, Int64, BigInt]
     for n in 1:1000
         @test ϕ(T(n)) == totient(T(n)) == totient(-T(n))
     end
-    @test_throws ArgumentError totient(T(0))
+    @test_throws ArgumentError @inferred(totient(T(0)))
 end
 
 # check some big values
