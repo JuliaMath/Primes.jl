@@ -3,32 +3,20 @@ __precompile__()
 module Primes
 
 using Compat
+using Compat.Iterators: repeated
 
-if isdefined(Base, :Iterators)
-    import Base.Iterators: repeated
-end
-
-include("factorization.jl")
-
-if VERSION >= v"0.5.0-dev+4340"
-    if isdefined(Base,:isprime)
-        import Base: isprime, primes, primesmask, factor
-    else
-        export isprime, primes, primesmask, factor
-    end
-
-    using Base: BitSigned
-    using Base.Checked.checked_neg
+if isdefined(Base,:isprime)
+    import Base: isprime, primes, primesmask, factor
 else
-    const BitSigned = Union{Int128,Int16,Int32,Int64,Int8}
-    function checked_neg(x::Integer)
-        y = -x
-        (y < 0) == (x < 0) && throw(OverflowError())
-        return y
-    end
+    export isprime, primes, primesmask, factor
 end
+
+using Base: BitSigned
+using Base.Checked.checked_neg
 
 export ismersenneprime, isrieselprime, totient
+
+include("factorization.jl")
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes

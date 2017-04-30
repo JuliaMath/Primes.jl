@@ -1,6 +1,5 @@
 # Primes.jl
 
-[![Primes](http://pkg.julialang.org/badges/Primes_0.4.svg)](http://pkg.julialang.org/?pkg=Primes)
 [![Primes](http://pkg.julialang.org/badges/Primes_0.5.svg)](http://pkg.julialang.org/?pkg=Primes)
 [![Primes](http://pkg.julialang.org/badges/Primes_0.6.svg)](http://pkg.julialang.org/?pkg=Primes)
 [![Build Status](https://travis-ci.org/JuliaMath/Primes.jl.svg?branch=master)](https://travis-ci.org/JuliaMath/Primes.jl)
