@@ -5,10 +5,10 @@ immutable Factorization{T<:Integer} <: Associative{T, Int}
     pe::Vector{Pair{T, Int}} # Prime-Exponent
 
     # Factorization{T}() where {T} = new(Vector{Pair{T, Int}}())
-    @compat (::Type{Factorization{T}}){T<:Integer}() = new{T}(Vector{Pair{T, Int}}())
+    (::Type{Factorization{T}}){T<:Integer}() = new{T}(Vector{Pair{T, Int}}())
 end
 
-@compat function (::Type{Factorization{T}}){T<:Integer}(d::Associative)
+function (::Type{Factorization{T}}){T<:Integer}(d::Associative)
     f = Factorization{T}()
     append!(f.pe, sort!(collect(d)))
     f
