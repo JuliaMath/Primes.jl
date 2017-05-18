@@ -388,50 +388,57 @@ julia> radical(2*2*3)
 radical(n) = prod(factor(Set, n))
 
 function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}, multiplicity=1)
-    while true
-        c::T = rand(1:(n - 1))
-        G::T = 1
-        r::K = 1
-        y::T = rand(0:(n - 1))
-        m::K = 1900
-        ys::T = 0
-        q::T = 1
-        x::T = 0
-        while c == n - 2
-            c = rand(1:(n - 1))
-        end
-        while G == 1
-            x = y
-            for i in 1:r
-                y = y^2 % n
-                y = (y + c) % n
+    stack = Factorization(n=>multiplicity)
+    while !isempty(stack)
+        (n, multiplicity) = pop!(stack)
+        factor_found = false
+        while !factor_found
+            c::T = rand(1:(n - 1))
+            G::T = 1
+            r::K = 1
+            y::T = rand(0:(n - 1))
+            m::K = 1900
+            ys::T = 0
+            q::T = 1
+            x::T = 0
+            while c == n - 2
+                c = rand(1:(n - 1))
             end
-            k::K = 0
-            G = 1
-            while k < r && G == 1
-                for i in 1:(m > (r - k) ? (r - k) : m)
-                    ys = y
+            while G == 1
+                x = y
+                for i in 1:r
                     y = y^2 % n
                     y = (y + c) % n
-                    q = (q * (x > y ? x - y : y - x)) % n
                 end
-                G = gcd(q, n)
-                k += m
+                k::K = 0
+                G = 1
+                while k < r && G == 1
+                    for i in 1:(m > (r - k) ? (r - k) : m)
+                        ys = y
+                        y = y^2 % n
+                        y = (y + c) % n
+                        q = (q * (x > y ? x - y : y - x)) % n
+                    end
+                    G = gcd(q, n)
+                    k += m
+                end
+                r *= 2
             end
-            r *= 2
-        end
-        G == n && (G = 1)
-        while G == 1
-            ys = ys^2 % n
-            ys = (ys + c) % n
-            G = gcd(x > ys ? x - ys : ys - x, n)
-        end
-        if G != n
-            recurse_with_subfactors!(G, div(n, G), h,
-                                     multiplicity, pollardfactors!)
-            return h
+            G == n && (G = 1)
+            while G == 1
+                ys = ys^2 % n
+                ys = (ys + c) % n
+                G = gcd(x > ys ? x - ys : ys - x, n)
+            end
+            if G != n
+                recurse_with_subfactors!(G, div(n, G), h,
+                                         multiplicity,
+                                         (n, h, m) -> stack[n] += m)
+                factor_found = true
+            end
         end
     end
+    return h
 end
 
 # given two found non-trivial factors a and b=n/a of n, apply

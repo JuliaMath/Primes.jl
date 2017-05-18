@@ -42,6 +42,8 @@ function Base.setindex!{T}(f::Factorization{T}, e::Int, p::Integer)
     f
 end
 
+Base.pop!(f::Factorization) = pop!(f.pe)
+
 Base.length(f::Factorization) = length(f.pe)
 
 Base.show(io::IO, ::MIME{Symbol("text/plain")}, f::Factorization) =
