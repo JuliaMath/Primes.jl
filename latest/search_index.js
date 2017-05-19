@@ -73,11 +73,35 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "api.html#Primes.nextprime",
+    "page": "Functions",
+    "title": "Primes.nextprime",
+    "category": "Function",
+    "text": "nextprime(n::Integer, i::Integer=1)\n\nThe i-th smallest prime not less than n (in particular, nextprime(p) == p if p is prime). If i < 0, this is equivalent to prevprime(n, -i). Note that for n::BigInt, the returned number is only a pseudo-prime (the function isprime is used internally). See also prevprime.\n\njulia> nextprime(4)\n5\n\njulia> nextprime(5)\n5\n\njulia> nextprime(4, 2)\n7\n\njulia> nextprime(5, 2)\n7\n\n\n\n"
+},
+
+{
+    "location": "api.html#Primes.prevprime",
+    "page": "Functions",
+    "title": "Primes.prevprime",
+    "category": "Function",
+    "text": "prevprime(n::Integer, i::Integer=1)\n\nThe i-th largest prime not greater than n (in particular prevprime(p) == p if p is prime). If i < 0, this is equivalent to nextprime(n, -i). Note that for n::BigInt, the returned number is only a pseudo-prime (the function isprime is used internally). See also nextprime.\n\njulia> prevprime(4)\n3\n\njulia> prevprime(5)\n5\n\njulia> prevprime(5, 2)\n3\n\n\n\n"
+},
+
+{
+    "location": "api.html#Primes.prime",
+    "page": "Functions",
+    "title": "Primes.prime",
+    "category": "Function",
+    "text": "prime{T}(::Type{T}=Int, i::Integer)\n\nThe i-th prime number.\n\njulia> prime(1)\n2\n\njulia> prime(3)\n5\n\n\n\n\n"
+},
+
+{
     "location": "api.html#Generating-prime-numbers-1",
     "page": "Functions",
     "title": "Generating prime numbers",
     "category": "section",
-    "text": "Primes.primes"
+    "text": "Primes.primes\nPrimes.nextprime\nPrimes.prevprime\nPrimes.prime"
 },
 
 {
