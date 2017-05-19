@@ -4,6 +4,8 @@
 
 ```@docs
 Primes.factor
+Primes.prodfactors
+Primes.radical
 ```
 
 ## Generating prime numbers
