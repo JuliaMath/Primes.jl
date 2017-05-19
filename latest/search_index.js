@@ -57,11 +57,27 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
+    "location": "api.html#Primes.prodfactors",
+    "page": "Functions",
+    "title": "Primes.prodfactors",
+    "category": "Function",
+    "text": "prodfactors(factors)\n\nCompute n (or the radical of n when factors is of type Set or IntSet) where factors is interpreted as the result of factor(typeof(factors), n). Note that if factors is of type AbstractArray or Primes.Factorization, then prodfactors is equivalent to Base.prod.\n\njulia> prodfactors(factor(100))\n100\n\n\n\n"
+},
+
+{
+    "location": "api.html#Primes.radical",
+    "page": "Functions",
+    "title": "Primes.radical",
+    "category": "Function",
+    "text": "radical(n::Integer)\n\nCompute the radical of n, i.e. the largest square-free divisor of n. This is equal to the product of the distinct prime numbers dividing n.\n\njulia> radical(2*2*3)\n6\n\n\n\n"
+},
+
+{
     "location": "api.html#Prime-factorization-1",
     "page": "Functions",
     "title": "Prime factorization",
     "category": "section",
-    "text": "Primes.factor"
+    "text": "Primes.factor\nPrimes.prodfactors\nPrimes.radical"
 },
 
 {
