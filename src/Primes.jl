@@ -523,7 +523,7 @@ end
 
 Compute the Euler totient function ``ϕ(n)``, which counts the number of
 positive integers less than or equal to ``n`` that are relatively prime to
-``n`` (that is, the number of positive integers `m < n` with `gcd(m, n) == 1`).
+``n`` (that is, the number of positive integers `m ≤ n` with `gcd(m, n) == 1`).
 The totient function of `n` when `n` is negative is defined to be
 `totient(abs(n))`.
 """
