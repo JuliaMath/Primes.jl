@@ -14,7 +14,7 @@ end
 using Base: BitSigned
 using Base.Checked.checked_neg
 
-export ismersenneprime, isrieselprime, nextprime, prevprime, prime, prodfactors, radical
+export ismersenneprime, isrieselprime, nextprime, prevprime, prime, prodfactors, radical, totient
 
 include("factorization.jl")
 
@@ -498,6 +498,37 @@ function ll_primecheck(X::Integer, s::Integer = 4)
         S = (S^2 - 2) % X
     end
     return S == 0
+end
+
+"""
+    totient(f::Factorization{T}) -> T
+
+Compute the Euler totient function of the number whose prime factorization is
+given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
+when the factorization can be reused for other purposes.
+"""
+function totient{T <: Integer}(f::Factorization{T})
+    if !isempty(f) && first(first(f)) == 0
+        throw(ArgumentError("ϕ(0) is not defined"))
+    end
+    result = one(T)
+    for (p, k) in f
+        result *= p^(k-1) * (p - 1)
+    end
+    result
+end
+
+"""
+    totient(n::Integer) -> Integer
+
+Compute the Euler totient function ``ϕ(n)``, which counts the number of
+positive integers less than or equal to ``n`` that are relatively prime to
+``n`` (that is, the number of positive integers `m ≤ n` with `gcd(m, n) == 1`).
+The totient function of `n` when `n` is negative is defined to be
+`totient(abs(n))`.
+"""
+function totient(n::Integer)
+    totient(factor(abs(n)))
 end
 
 # add_! : "may" mutate the Integer argument (only for BigInt currently)
