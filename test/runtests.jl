@@ -279,7 +279,7 @@ end
 # dumb implementation of Euler totient for correctness tests
 ϕ(n) = count(m -> gcd(n, m) == 1, 1:n)
 
-for T in [Int16, Int32, Int64, BigInt]
+@testset "totient(::$T)" for T in [Int16, Int32, Int64, BigInt]
     for n in 1:1000
         @test ϕ(T(n)) == totient(T(n)) == totient(-T(n))
     end
@@ -287,22 +287,25 @@ for T in [Int16, Int32, Int64, BigInt]
 end
 
 # check some big values
-@test totient(2^4 * 3^4 * 5^4) == 216000
-@test totient(big"2"^1000) == big"2"^999
+@testset "totient() correctness" begin
+    @test totient(2^4 * 3^4 * 5^4) == 216000
+    @test totient(big"2"^1000) == big"2"^999
 
-const some_coprime_numbers = BigInt[
-    450000000, 1099427429702334733, 200252151854851, 1416976291499, 7504637909,
-    1368701327204614490999, 662333585807659, 340557446329, 1009091
-]
+    const some_coprime_numbers = BigInt[
+        450000000, 1099427429702334733, 200252151854851, 1416976291499, 7504637909,
+        1368701327204614490999, 662333585807659, 340557446329, 1009091
+    ]
 
-for i in some_coprime_numbers
-    for j in some_coprime_numbers
-        if i ≠ j
-            @test totient(i*j) == totient(i) * totient(j)
+    for i in some_coprime_numbers
+        for j in some_coprime_numbers
+            if i ≠ j
+                @test totient(i*j) == totient(i) * totient(j)
+            end
         end
+        # can use directly with Factorization
+        @test totient(i) == totient(factor(i))
     end
-    # can use directly with Factorization
-    @test totient(i) == totient(factor(i))
+end
 
 # check copy property for big primes relied upon in nextprime/prevprime
 for n = rand(big(-10):big(10), 10)
