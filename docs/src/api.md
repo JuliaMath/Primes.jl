@@ -4,12 +4,17 @@
 
 ```@docs
 Primes.factor
+Primes.prodfactors
+Primes.radical
 ```
 
 ## Generating prime numbers
 
 ```@docs
 Primes.primes
+Primes.nextprime
+Primes.prevprime
+Primes.prime
 ```
 
 ## Identifying prime numbers

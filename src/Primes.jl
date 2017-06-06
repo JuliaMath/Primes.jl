@@ -14,7 +14,7 @@ end
 using Base: BitSigned
 using Base.Checked.checked_neg
 
-export ismersenneprime, isrieselprime, totient
+export ismersenneprime, isrieselprime, nextprime, prevprime, prime, prodfactors, radical, totient
 
 include("factorization.jl")
 
@@ -346,6 +346,44 @@ factor{T<:Integer}(::Type{Vector{T}}, n::T) =
 factor{T<:Integer, S<:Union{Set,IntSet}}(::Type{S}, n::T) = S(keys(factor(n)))
 factor{T<:Any}(::Type{T}, n) = throw(MethodError(factor, (T, n)))
 
+"""
+    prodfactors(factors)
+
+Compute `n` (or the radical of `n` when `factors` is of type `Set` or
+`IntSet`) where `factors` is interpreted as the result of
+`factor(typeof(factors), n)`. Note that if `factors` is of type
+`AbstractArray` or `Primes.Factorization`, then `prodfactors` is equivalent
+to `Base.prod`.
+
+```jldoctest
+julia> prodfactors(factor(100))
+100
+```
+"""
+function prodfactors end
+
+prodfactors(factors::Associative) = prod(p^i for (p, i) in factors)
+prodfactors(factors::Union{AbstractArray, Set, IntSet}) = prod(factors)
+
+"""
+    Base.prod(factors::Primes.Factorization{T}) -> T
+
+Compute `n` where `factors` is interpreted as the result of `factor(n)`.
+"""
+Base.prod(factors::Factorization) = prodfactors(factors)
+
+"""
+    radical(n::Integer)
+
+Compute the radical of `n`, i.e. the largest square-free divisor of `n`.
+This is equal to the product of the distinct prime numbers dividing `n`.
+
+```jldoctest
+julia> radical(2*2*3)
+6
+```
+"""
+radical(n) = prod(factor(Set, n))
 
 function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
     while true
@@ -470,6 +508,9 @@ given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
 when the factorization can be reused for other purposes.
 """
 function totient{T <: Integer}(f::Factorization{T})
+    if !isempty(f) && first(first(f)) == 0
+        throw(ArgumentError("ϕ(0) is not defined"))
+    end
     result = one(T)
     for (p, k) in f
         result *= p^(k-1) * (p - 1)
@@ -481,14 +522,131 @@ end
     totient(n::Integer) -> Integer
 
 Compute the Euler totient function ``ϕ(n)``, which counts the number of
-positive integers relatively prime to ``n`` (that is, the number of positive
-integers `m` with `gcd(m, n) == 1`).
+positive integers less than or equal to ``n`` that are relatively prime to
+``n`` (that is, the number of positive integers `m < n` with `gcd(m, n) == 1`).
+The totient function of `n` when `n` is negative is defined to be
+`totient(abs(n))`.
 """
 function totient(n::Integer)
-    if iszero(n)
-        throw(ArgumentError("ϕ(0) is not defined"))
-    end
     totient(factor(abs(n)))
 end
+
+# add_! : "may" mutate the Integer argument (only for BigInt currently)
+
+# modify a BigInt in-place
+function add_!(n::BigInt, x::Int)
+    if x < 0
+        ccall((:__gmpz_sub_ui, :libgmp), Void, (Ptr{BigInt}, Ptr{BigInt}, Culong), &n, &n, -x)
+    else
+        ccall((:__gmpz_add_ui, :libgmp), Void, (Ptr{BigInt}, Ptr{BigInt}, Culong), &n, &n, x)
+    end
+    n
+end
+
+# checked addition, without mutation
+add_!(n::Integer, x::Int) = Base.checked_add(n, oftype(n, x))
+
+"""
+    nextprime(n::Integer, i::Integer=1)
+
+The `i`-th smallest prime not less than `n` (in particular,
+`nextprime(p) == p` if `p` is prime). If `i < 0`, this is equivalent to
+prevprime(n, -i). Note that for `n::BigInt`, the returned number is
+only a pseudo-prime (the function [`isprime`](@ref) is used
+internally). See also [`prevprime`](@ref).
+
+```jldoctest
+julia> nextprime(4)
+5
+
+julia> nextprime(5)
+5
+
+julia> nextprime(4, 2)
+7
+
+julia> nextprime(5, 2)
+7
+```
+"""
+function nextprime(n::Integer, i::Integer=1)
+    i < 0 && return prevprime(n, -i)
+    i == 0 && throw(DomainError())
+    n < 2 && (n = oftype(n, 2))
+    if n == 2
+        if i <= 1
+            return n
+        else
+            n += one(n)
+            i -= 1
+        end
+    else
+        n += iseven(n)
+    end
+    # n can now be safely mutated
+    # @assert isodd(n) && n >= 3
+    while true
+        while !isprime(n)
+            n = add_!(n, 2)
+        end
+        i -= 1
+        i <= 0 && break
+        n = add_!(n, 2)
+    end
+    n
+end
+
+
+"""
+    prevprime(n::Integer, i::Integer=1)
+
+The `i`-th largest prime not greater than `n` (in particular
+`prevprime(p) == p` if `p` is prime). If `i < 0`, this is equivalent to
+`nextprime(n, -i)`. Note that for `n::BigInt`, the returned number is
+only a pseudo-prime (the function [`isprime`](@ref) is used internally). See
+also [`nextprime`](@ref).
+
+```jldoctest
+julia> prevprime(4)
+3
+
+julia> prevprime(5)
+5
+
+julia> prevprime(5, 2)
+3
+```
+"""
+function prevprime(n::Integer, i::Integer=1)
+    i <= 0 && return nextprime(n, -i)
+    n += zero(n) # deep copy of n, which is mutated below
+    while true
+        n < 2 && throw(ArgumentError("There is no prime less than or equal to $n"))
+        while !isprime(n)
+            n = add_!(n, -1)
+        end
+        i -= 1
+        i <= 0 && break
+        n = add_!(n, -1)
+    end
+    n
+end
+
+"""
+    prime{T}(::Type{T}=Int, i::Integer)
+
+The `i`-th prime number.
+
+```jldoctest
+julia> prime(1)
+2
+
+julia> prime(3)
+5
+
+```
+"""
+prime{T<:Integer}(::Type{T}, i::Integer) = i < 0 ? throw(DomainError()) : nextprime(T(2), i)
+prime(i::Integer) = prime(Int, i)
 
 end # module
