@@ -267,6 +267,7 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             p^2 >= n && (h[n] = 1; return h)
         end
     end
+    isprime(n) && (h[n] = 1; return h)
     T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
 end
 
