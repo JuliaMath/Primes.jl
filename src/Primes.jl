@@ -269,7 +269,8 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
 
     local p::T
     local counter = 0
-    for p in PRIMES
+    local last_test = 0
+    for (i, p) in enumerate(PRIMES)
         if n % p == 0
             h[p] = get(h, p, 0) + 1
             n = div(n, p)
@@ -280,7 +281,10 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             n == 1 && return h
             p^2 > n && (h[n] = 1; return h)
             counter += 1
-            counter % 75 == 0 && _miller_rabin(n) && (h[n] = 1; return h)
+            if counter % 75 == 0 || i - last_test > 300
+                last_test = i
+                _miller_rabin(n) && (h[n] = 1; return h)
+            end
         end
     end
     isprime(n) && (h[n] = 1; return h)
