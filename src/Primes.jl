@@ -293,7 +293,7 @@ end
 
 
 """
-factor(n::Integer) -> Primes.Factorization
+    factor(n::Integer) -> Primes.Factorization
 
 Compute the prime factorization of an integer `n`. The returned
 object, of type `Factorization`, is an associative container whose
