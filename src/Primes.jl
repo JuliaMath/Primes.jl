@@ -151,9 +151,9 @@ end
 
 function _trial_division(n::Integer, limit::Integer)
     for p in PRIMES
-        p > limit && return 
-        p^2 > n && return true
-        n % p == 0 && return false
+        p > limit && return Nullable{Bool}() 
+        p^2 > n && return Nullable{Bool}(true)
+        n % p == 0 && return Nullable{Bool}(false)
     end
 end
 
@@ -173,7 +173,7 @@ function isprime(n::Integer)
     #     https://github.com/JuliaLang/julia/issues/11594
     n < 2 && return false
 
-    t = Nullable{Bool}(_trial_division(n, 25))
+    t = _trial_division(n, 25)
     !isnull(t) && return get(t)
     
     return _miller_rabin(n)
