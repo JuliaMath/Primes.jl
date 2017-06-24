@@ -391,8 +391,7 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}, mul
     stack = Factorization(n=>multiplicity)
     while !isempty(stack)
         (n, multiplicity) = pop!(stack)
-        factor_found = false
-        while !factor_found
+        while true
             c::T = rand(1:(n - 1))
             G::T = 1
             r::K = 1
@@ -434,29 +433,39 @@ function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}, mul
                 recurse_with_subfactors!(G, div(n, G), h,
                                          multiplicity,
                                          (n, h, m) -> stack[n] += m)
-                factor_found = true
+                break
             end
         end
     end
     return h
 end
 
+# given two number a and b with multiplicity ma and mb respectively,
+# populate facts with pairwise-coprimes divisors of a and b (with
+# appropriate multiplicity) using repeated gcd applications, such
+# that prod(facts) == a^ma*b^mb
+function pairwise_coprime!(a::T, ma, b::T, mb, facts) where T
+    a == b && (facts[a] += ma+mb;
+               return b)
+    d = gcd(a, b)
+    d == 1 && (facts[a] += ma;
+               facts[b] += mb;
+               return b)
+    dd = pairwise_coprime!(a÷d, ma, d, ma+mb, facts)
+    # dd is a divisor of d, such that d/dd divides a/d, and hence
+    # d/dd is coprime to b/d; IOW, if there is a divisor of both d and
+    # b/d, then it is a divisor of dd
+    facts[dd] -= ma+mb
+    pairwise_coprime!(dd, ma+mb, b÷d, mb, facts)
+end
+
+
 # given two found non-trivial factors a and b=n/a of n, apply
 # recursively the algorithm (via `continuation!`) for the non-prime
 # factors, otherwise update the factors list `h`
 function recurse_with_subfactors!{T<:Integer}(a::T, b::T, h::Associative{T,Int}, multiplicity, continuation!)
-    if a == b
-        facts = Factorization(a => 2multiplicity)
-    else
-        d = gcd(a, b) # check if an easy smaller factor can be found
-        if d != 1
-            facts = Factorization(a÷d => multiplicity,
-                                  b÷d => multiplicity,
-                                  d   => 2multiplicity)
-        else
-            facts = Factorization(a => multiplicity, b => multiplicity)
-        end
-    end
+    facts = Factorization{T}()
+    pairwise_coprime!(a, multiplicity, b, multiplicity, facts)
     pr = Set(f[1] for f in facts if isprime(f[1]))
     for (f, mult) in facts
         f == 1 && continue
