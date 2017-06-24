@@ -468,7 +468,7 @@ function recurse_with_subfactors!{T<:Integer}(a::T, b::T, h::Associative{T,Int},
     pairwise_coprime!(a, multiplicity, b, multiplicity, facts)
     pr = Set(f[1] for f in facts if isprime(f[1]))
     for (f, mult) in facts
-        f == 1 && continue
+        f != 1 && mult != 0 || continue
         if f in pr # f is prime
             h[f] = get(h, f, 0) + mult
         else
