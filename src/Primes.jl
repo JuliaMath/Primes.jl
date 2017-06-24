@@ -133,6 +133,30 @@ primes(n::Int) = primes(1, n)
 
 const PRIMES = primes(2^16)
 
+function _miller_rabin(n::Integer)
+    s = trailing_zeros(n - 1)
+    d = (n - 1) >>> s
+    for a in witnesses(n)::Tuple{Vararg{Int}}
+        x = powermod(a, d, n)
+        x == 1 && continue
+        t = s
+        while x != n - 1
+            (t -= 1) ≤ 0 && return false
+            x = oftype(n, widemul(x, x) % n)
+            x == 1 && return false
+        end
+    end
+    return true
+end
+
+function _trial_division(n::Integer, limit::Integer)
+    for p in PRIMES
+        p > limit && return 
+        p^2 > n && return true
+        n % p == 0 && return false
+    end
+end
+
 """
     isprime(n::Integer) -> Bool
 
@@ -147,23 +171,12 @@ function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
-    for m in (2, 3, 5, 7, 11, 13, 17, 19, 23)
-        n % m == 0 && return n == m
-    end
-    n < 841 && return n > 1
-    s = trailing_zeros(n - 1)
-    d = (n - 1) >>> s
-    for a in witnesses(n)::Tuple{Vararg{Int}}
-        x = powermod(a, d, n)
-        x == 1 && continue
-        t = s
-        while x != n - 1
-            (t -= 1) ≤ 0 && return false
-            x = oftype(n, widemul(x, x) % n)
-            x == 1 && return false
-        end
-    end
-    return true
+    n < 0 && return false
+
+    t = Nullable{Bool}(_trial_division(n, 25))
+    !isnull(t) && return get(t)
+    
+    return _miller_rabin(n)
 end
 
 """
@@ -255,6 +268,7 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
     end
 
     local p::T
+    local counter = 0
     for p in PRIMES
         if n % p == 0
             h[p] = get(h, p, 0) + 1
@@ -264,7 +278,9 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
                 n = div(n, p)
             end
             n == 1 && return h
-            p^2 >= n && (h[n] = 1; return h)
+            p^2 > n && (h[n] = 1; return h)
+            counter += 1
+            counter % 75 == 0 && _miller_rabin(n) && (h[n] = 1; return h)
         end
     end
     isprime(n) && (h[n] = 1; return h)
@@ -273,7 +289,7 @@ end
 
 
 """
-    factor(n::Integer) -> Primes.Factorization
+factor(n::Integer) -> Primes.Factorization
 
 Compute the prime factorization of an integer `n`. The returned
 object, of type `Factorization`, is an associative container whose
