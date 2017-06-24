@@ -281,7 +281,7 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             n == 1 && return h
             p^2 > n && (h[n] = 1; return h)
             counter += 1
-            if counter % 75 == 0 || i - last_test > 300
+            if counter % 75 == 0 || i - last_test > 700
                 last_test = i
                 _miller_rabin(n) && (h[n] = 1; return h)
             end
