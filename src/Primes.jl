@@ -463,7 +463,7 @@ end
 # given two found non-trivial factors a and b=n/a of n, apply
 # recursively the algorithm (via `continuation!`) for the non-prime
 # factors, otherwise update the factors list `h`
-function recurse_with_subfactors!{T<:Integer}(a::T, b::T, h::Associative{T,Int}, multiplicity, continuation!)
+function recurse_with_subfactors!{T<:Integer}(a::T, b::T, h::Associative, multiplicity, continuation!)
     facts = Factorization{T}()
     pairwise_coprime!(a, multiplicity, b, multiplicity, facts)
     for (f, mult) in facts
