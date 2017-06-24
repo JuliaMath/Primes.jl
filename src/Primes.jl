@@ -362,7 +362,7 @@ julia> prodfactors(factor(100))
 """
 function prodfactors end
 
-prodfactors(factors::Associative) = prod(p^i for (p, i) in factors)
+prodfactors{K}(factors::Associative{K}) = isempty(factors) ? one(K) : prod(p^i for (p, i) in factors)
 prodfactors(factors::Union{AbstractArray, Set, IntSet}) = prod(factors)
 
 """

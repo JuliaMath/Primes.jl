@@ -341,7 +341,8 @@ end
 end
 
 for T in (Int, UInt, BigInt)
-    for n in rand(T(1):T(100000), 10)
+    for n in [T(1); rand(T(2):T(100000), 10)]
+        # for n=T(1), must not error out (#51)
         for C = (Factorization, Vector, Dict)
             @test prodfactors(factor(C, n)) == n
         end
