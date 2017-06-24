@@ -133,9 +133,9 @@ primes(n::Int) = primes(1, n)
 
 const PRIMES = primes(2^16)
 
-function _miller_rabin(n::Integer)
+function _miller_rabin(n::Unsigned)
     s = trailing_zeros(n - 1)
-    d = (n - 1) >>> s
+    d = (n - 1) >> s
     for a in witnesses(n)::Tuple{Vararg{Int}}
         x = powermod(a, d, n)
         x == 1 && continue
@@ -176,6 +176,7 @@ function isprime(n::Integer)
     t = _trial_division(n, 25)
     !isnull(t) && return get(t)
     
+    n = Unsigned(n)
     return _miller_rabin(n)
 end
 
