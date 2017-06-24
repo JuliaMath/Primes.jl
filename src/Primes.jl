@@ -466,20 +466,11 @@ end
 function recurse_with_subfactors!{T<:Integer}(a::T, b::T, h::Associative{T,Int}, multiplicity, continuation!)
     facts = Factorization{T}()
     pairwise_coprime!(a, multiplicity, b, multiplicity, facts)
-    pr = Set(f[1] for f in facts if isprime(f[1]))
     for (f, mult) in facts
         f != 1 && mult != 0 || continue
-        if f in pr # f is prime
-            h[f] = get(h, f, 0) + mult
-        else
-            for p in pr # check if any of the known primes would divide f
-                while f % p == 0
-                    h[p] = get(h, p, 0) + mult
-                    f ÷= p
-                end
-            end
-            f != 1 && continuation!(f, h, mult)
-        end
+        isprime(f) ?
+            h[f] = get(h, f, 0) + mult :
+            continuation!(f, h, mult)
     end
 end
 
