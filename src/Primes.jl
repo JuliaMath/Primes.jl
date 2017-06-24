@@ -171,7 +171,7 @@ function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
-    n < 0 && return false
+    n < 2 && return false
 
     t = Nullable{Bool}(_trial_division(n, 25))
     !isnull(t) && return get(t)
