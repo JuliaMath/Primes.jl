@@ -444,7 +444,7 @@ end
 # populate facts with pairwise-coprimes divisors of a and b (with
 # appropriate multiplicity) using repeated gcd applications, such
 # that prod(facts) == a^ma*b^mb
-function pairwise_coprime!(a::T, ma, b::T, mb, facts) where T
+function pairwise_coprime!{T}(a::T, ma::Int, b::T, mb::Int, facts::Factorization)
     a == b && (facts[a] += ma+mb;
                return b)
     d = gcd(a, b)
