@@ -133,7 +133,7 @@ primes(n::Int) = primes(1, n)
 
 const PRIMES = primes(2^16)
 
-function _miller_rabin(n::Unsigned)
+function _miller_rabin(n::Integer)
     s = trailing_zeros(n - 1)
     d = (n - 1) >> s
     for a in witnesses(n)::Tuple{Vararg{Int}}
@@ -150,10 +150,10 @@ function _miller_rabin(n::Unsigned)
 end
 
 function _trial_division(n::Integer, limit::Integer)
-    for p in PRIMES
+    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29)
         p > limit && return Nullable{Bool}() 
-        p^2 > n && return Nullable{Bool}(true)
-        n % p == 0 && return Nullable{Bool}(false)
+        p^2 > n && return Nullable(true)
+        n % p == 0 && return Nullable(false)
     end
 end
 
@@ -176,8 +176,7 @@ function isprime(n::Integer)
     t = _trial_division(n, 25)
     !isnull(t) && return get(t)
     
-    n = Unsigned(n)
-    return _miller_rabin(n)
+    return _miller_rabin(Unsigned(n))
 end
 
 """
@@ -282,7 +281,7 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             n == 1 && return h
             p^2 > n && (h[n] = 1; return h)
             counter += 1
-            if counter % 75 == 0 || i - last_test > 700
+            if counter & 0x3f == 0 || i - last_test > 700
                 last_test = i
                 _miller_rabin(n) && (h[n] = 1; return h)
             end
