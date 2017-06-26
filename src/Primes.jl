@@ -136,7 +136,7 @@ const PRIMES = primes(2^16)
 function _miller_rabin(n::Integer)
     s = trailing_zeros(n - 1)
     d = (n - 1) >> s
-    for a in witnesses(n)::Tuple{Vararg{Int}}
+    for a in witnesses(n)
         x = powermod(a, d, n)
         x == 1 && continue
         t = s
@@ -176,7 +176,7 @@ function isprime(n::Integer)
     t = _trial_division(n, 25)
     !isnull(t) && return get(t)
     
-    return _miller_rabin(Unsigned(n))
+    return _miller_rabin(n)
 end
 
 """
@@ -281,10 +281,12 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             n == 1 && return h
             p^2 > n && (h[n] = 1; return h)
             counter += 1
-            if counter & 0x3f == 0 || i - last_test > 700
-                last_test = i
-                _miller_rabin(n) && (h[n] = 1; return h)
-            end
+        end
+        if counter % 100 == 0 || i - last_test > 700
+            # to make sure we don't perform additional tests, if we don't find divisors
+            counter += 1
+            last_test = i
+            _miller_rabin(n) && (h[n] = 1; return h)
         end
     end
     isprime(n) && (h[n] = 1; return h)
