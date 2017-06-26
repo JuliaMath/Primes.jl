@@ -682,7 +682,7 @@ Base.done(np::NextPrimes, state) = false
 Base.iteratorsize(::Type{<:NextPrimes}) = Base.IsInfinite()
 Base.iteratoreltype(::Type{<:NextPrimes}) = Base.HasEltype() # default
 
-Base.eltype(::Type{NextPrimes{T}}) where {T} = T
+Base.eltype{T}(::Type{NextPrimes{T}}) = T
 
 """
     nextprimes(start::Integer)
@@ -698,7 +698,7 @@ nextprimes(start::Integer) = NextPrimes(start)
 Returns an iterator over all primes, with type `T`.
 Equivalent to `nextprimes(T(1))`.
 """
-nextprimes(::Type{T}) where {T<:Integer} = nextprimes(one(T))
+nextprimes{T<:Integer}(::Type{T}) = nextprimes(one(T))
 nextprimes() = nextprimes(Int)
 
 """
@@ -716,7 +716,7 @@ julia> nextprimes(10, 3)
  17
 ```
 """
-nextprimes(start::T, n::Integer) where {T<:Integer} =
+nextprimes{T<:Integer}(start::T, n::Integer) =
     iterate(x->nextprime(add(x, 1)), nextprime(start), n)
 
 struct PrevPrimes{T<:Integer}
@@ -730,7 +730,7 @@ done(np::PrevPrimes, state) = state == 2
 iteratorsize(::Type{<:PrevPrimes}) = Base.SizeUnknown()
 iteratoreltype(::Type{<:PrevPrimes}) = Base.HasEltype() # default
 
-eltype(::Type{PrevPrimes{T}}) where {T} = T
+eltype{T}(::Type{PrevPrimes{T}}) = T
 
 """
     prevprimes(start::Integer)
@@ -767,11 +767,11 @@ julia> prevprimes(10, 3)
  3
 ```
 """
-prevprimes(start::T, n::Integer) where {T<:Integer} =
+prevprimes{T<:Integer}(start::T, n::Integer) =
     iterate(x->prevprime(add(x, -1)), prevprime(start), n)
 
-function iterate(f, x::T, n::Integer) where T
-    v = Vector{T}(n)
+function iterate(f, x, n::Integer)
+    v = Vector{eltype(x)}(n)
     n != 0 && (@inbounds v[1] = x)
     @inbounds for i = 2:n
         x = f(x)
