@@ -4,11 +4,12 @@ module Primes
 
 using Base.Iterators: repeated
 
+import Base: start, next, done, eltype, iteratorsize, iteratoreltype
 using Base: BitSigned
 using Base.Checked: checked_neg
 
 export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
-       nextprime, prevprime, prime, prodfactors, radical, totient
+       nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
 include("factorization.jl")
 
@@ -528,6 +529,11 @@ function totient(n::Integer)
     totient(factor(abs(n)))
 end
 
+# add: checked add (when makes sense), result of same type as first argument
+
+add(n::BigInt, x::Int) = n+x
+add(n::Integer, x::Int) = Base.checked_add(n, oftype(n, x))
+
 # add_! : "may" mutate the Integer argument (only for BigInt currently)
 
 # modify a BigInt in-place
@@ -541,7 +547,7 @@ function add_!(n::BigInt, x::Int)
 end
 
 # checked addition, without mutation
-add_!(n::Integer, x::Int) = Base.checked_add(n, oftype(n, x))
+add_!(n::Integer, x::Int) = add(n, x)
 
 """
     nextprime(n::Integer, i::Integer=1; interval::Integer=1)
@@ -663,5 +669,115 @@ julia> prime(3)
 """
 prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
 prime(i::Integer) = prime(Int, i)
+
+
+struct NextPrimes{T<:Integer}
+    start::T
+end
+
+Base.start(np::NextPrimes) = np.start < 2 ? np.start : add(np.start, -1)
+Base.next(np::NextPrimes, state) = (p = nextprime(add(state, 1)); (p, p))
+Base.done(np::NextPrimes, state) = false
+
+Base.iteratorsize(::Type{<:NextPrimes}) = Base.IsInfinite()
+Base.iteratoreltype(::Type{<:NextPrimes}) = Base.HasEltype() # default
+
+Base.eltype(::Type{NextPrimes{T}}) where {T} = T
+
+"""
+    nextprimes(start::Integer)
+
+Returns an iterator over all primes greater than or equal to `start`,
+in ascending order.
+"""
+nextprimes(start::Integer) = NextPrimes(start)
+
+"""
+    nextprimes(T::Type=Int)
+
+Returns an iterator over all primes, with type `T`.
+Equivalent to `nextprimes(T(1))`.
+"""
+nextprimes(::Type{T}) where {T<:Integer} = nextprimes(one(T))
+nextprimes() = nextprimes(Int)
+
+"""
+    nextprimes(start::Integer, n::Integer)
+
+Returns an array of the first `n` primes greater than or equal to `start`.
+
+# Example
+
+```
+julia> nextprimes(10, 3)
+3-element Array{Int64,1}:
+ 11
+ 13
+ 17
+```
+"""
+nextprimes(start::T, n::Integer) where {T<:Integer} =
+    iterate(x->nextprime(add(x, 1)), nextprime(start), n)
+
+struct PrevPrimes{T<:Integer}
+    start::T
+end
+
+start(np::PrevPrimes) = np.start+one(np.start) # allow wrap-around
+next(np::PrevPrimes, state) = (p = prevprime(state-one(state)); (p, p))
+done(np::PrevPrimes, state) = state == 2
+
+iteratorsize(::Type{<:PrevPrimes}) = Base.SizeUnknown()
+iteratoreltype(::Type{<:PrevPrimes}) = Base.HasEltype() # default
+
+eltype(::Type{PrevPrimes{T}}) where {T} = T
+
+"""
+    prevprimes(start::Integer)
+
+Returns an iterator over all primes less than or equal to `start`,
+in descending order.
+
+# Example
+
+```
+julia> collect(prevprimes(10))
+4-element Array{Int64,1}:
+ 7
+ 5
+ 3
+ 2
+```
+"""
+prevprimes(start::Integer) = PrevPrimes(max(one(start), start))
+
+"""
+    prevprimes(start::Integer, n::Integer)
+
+Returns an array of the first `n` primes less than or equal to `start`,
+in descending order.
+
+# Example
+
+```
+julia> prevprimes(10, 3)
+3-element Array{Int64,1}:
+ 7
+ 5
+ 3
+```
+"""
+prevprimes(start::T, n::Integer) where {T<:Integer} =
+    iterate(x->prevprime(add(x, -1)), prevprime(start), n)
+
+function iterate(f, x::T, n::Integer) where T
+    v = Vector{T}(n)
+    n != 0 && (@inbounds v[1] = x)
+    @inbounds for i = 2:n
+        x = f(x)
+        v[i] = x
+    end
+    v
+end
 
 end # module
