@@ -135,12 +135,23 @@ const PRIMES = primes(2^16)
 
 """
     isprime(n::Integer) -> Bool
+    isprime(n::Integer, reps) -> Bool
 
 Returns `true` if `n` is prime, and `false` otherwise.
+
+If `n ≤ 2^64` and `reps` is not specified, this is a deterministic test.
+Otherwise, the test is probabilistic, with a false positive rate less than
+`1/4^reps`.
+
+A value of `reps = 25` is considered safe for cryptographic applications
+(Knuth, Seminumerical Algorithms), and is the default when `n > 2^64`.
 
 ```julia
 julia> isprime(3)
 true
+
+juli> isprime(big(2)^130-1, 10)
+false
 ```
 """
 function isprime(n::Integer)
@@ -166,20 +177,8 @@ function isprime(n::Integer)
     return true
 end
 
-"""
-    isprime(x::BigInt, [reps = 25]) -> Bool
-
-Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
-and `false` if `x` is composite (not prime). The false positive rate is about `0.25^reps`.
-`reps = 25` is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
-
-```julia
-julia> isprime(big(3))
-true
-```
-"""
-isprime(x::BigInt, reps=25) = ccall((:__gmpz_probab_prime_p,:libgmp), Cint, (Ptr{BigInt}, Cint), &x, reps) > 0
-
+isprime(x::Integer, reps::Integer) =
+    ccall((:__gmpz_probab_prime_p,:libgmp), Cint, (Ptr{BigInt}, Cint), &(big(x)), reps) > 0
 
 # Miller-Rabin witness choices based on:
 #     http://mathoverflow.net/questions/101922/smallest-collection-of-bases-for-prime-testing-of-64-bit-numbers
@@ -217,19 +216,21 @@ function _witnesses(n::UInt64)
     i = xor((n >> 16), n) * 0x45d9f3b
     i = xor((i >> 16), i) * 0x45d9f3b
     i = xor((i >> 16), i) & 255 + 1
-    @inbounds return (Int(bases[i]),)
+    @inbounds return (bases[i] % Int,)
 end
 witnesses(n::Integer) =
-        n < 4294967296      ? _witnesses(UInt64(n)) :
-        n < 2152302898747   ? (2, 3, 5, 7, 11) :
-        n < 3474749660383   ? (2, 3, 5, 7, 11, 13) :
-                              (2, 325, 9375, 28178, 450775, 9780504, 1795265022)
+        n <     4_294_967_296  ? _witnesses(n % UInt64) :
+        n < 2_152_302_898_747  ? (2, 3, 5, 7, 11) :
+        n < 3_474_749_660_383  ? (2, 3, 5, 7, 11, 13) :
+                                 (2, 325, 9375, 28178, 450775, 9780504, 1795265022)
 
-isprime(n::UInt128) =
-    n ≤ typemax(UInt64) ? isprime(UInt64(n)) : isprime(BigInt(n))
-isprime(n::Int128) = n < 2 ? false :
-    n ≤ typemax(Int64)  ? isprime(Int64(n))  : isprime(BigInt(n))
-
+# the isprime implementation works faster with Unsigned types
+# than with their signed counterparts
+isprime(n::Base.BitSigned) = n < 2 ? false : isprime(unsigned(n))
+isprime(n::Union{UInt128,BigInt}) =
+    n < 2               ? false :
+    n ≤ typemax(UInt64) ? isprime(n % UInt64) :
+                          isprime(n, 25)
 
 # Trial division of small (< 2^16) precomputed primes +
 # Pollard rho's algorithm with Richard P. Brent optimizations
