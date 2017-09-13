@@ -178,7 +178,10 @@ julia> isprime(big(3))
 true
 ```
 """
-isprime(x::BigInt, reps=25) = ccall((:__gmpz_probab_prime_p,:libgmp), Cint, (Ptr{BigInt}, Cint), &x, reps) > 0
+isprime(x::BigInt, reps=25) = ccall((:__gmpz_probab_prime_p,:libgmp),
+                                    Cint, (Any, Cint), x, reps) > 0
+# TODO: Change `Any` to `Ref{BigInt}` when 0.6 support is dropped.
+# The two have the same effect but `Ref{BigInt}` won't be optimized on 0.6.
 
 
 # Miller-Rabin witness choices based on:
@@ -535,10 +538,12 @@ end
 
 # modify a BigInt in-place
 function add_!(n::BigInt, x::Int)
+    # TODO: Change `Any` to `Ref{BigInt}` when 0.6 support is dropped.
+    # The two have the same effect but `Ref{BigInt}` won't be optimized on 0.6.
     if x < 0
-        ccall((:__gmpz_sub_ui, :libgmp), Void, (Ptr{BigInt}, Ptr{BigInt}, Culong), &n, &n, -x)
+        ccall((:__gmpz_sub_ui, :libgmp), Void, (Any, Any, Culong), n, n, -x)
     else
-        ccall((:__gmpz_add_ui, :libgmp), Void, (Ptr{BigInt}, Ptr{BigInt}, Culong), &n, &n, x)
+        ccall((:__gmpz_add_ui, :libgmp), Void, (Any, Any, Culong), n, n, x)
     end
     n
 end
@@ -571,7 +576,7 @@ julia> nextprime(5, 2)
 """
 function nextprime(n::Integer, i::Integer=1)
     i < 0 && return prevprime(n, -i)
-    i == 0 && throw(DomainError())
+    i == 0 && throw(DomainError(i))
     n < 2 && (n = oftype(n, 2))
     if n == 2
         if i <= 1
@@ -646,7 +651,7 @@ julia> prime(3)
 
 ```
 """
-prime{T<:Integer}(::Type{T}, i::Integer) = i < 0 ? throw(DomainError()) : nextprime(T(2), i)
+prime{T<:Integer}(::Type{T}, i::Integer) = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
 prime(i::Integer) = prime(Int, i)
 
 end # module
