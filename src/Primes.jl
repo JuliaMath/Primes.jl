@@ -270,7 +270,9 @@ function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
             isprime(n) && (h[n] = 1; return h)
         end
     end
-    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
+    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ?
+        pollardfactors!(n, h) :
+        pollardfactors!(widen(n), h)
 end
 
 
@@ -388,51 +390,90 @@ julia> radical(2*2*3)
 """
 radical(n) = prod(factor(Set, n))
 
-function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
-    while true
-        c::T = rand(1:(n - 1))
-        G::T = 1
-        r::K = 1
-        y::T = rand(0:(n - 1))
-        m::K = 1900
-        ys::T = 0
-        q::T = 1
-        x::T = 0
-        while c == n - 2
-            c = rand(1:(n - 1))
-        end
-        while G == 1
-            x = y
-            for i in 1:r
-                y = y^2 % n
-                y = (y + c) % n
+function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int}, multiplicity=1)
+    stack = Factorization(n=>multiplicity)
+    while !isempty(stack)
+        (n, multiplicity) = pop!(stack)
+        while true
+            c::T = rand(1:(n - 1))
+            G::T = 1
+            r::K = 1
+            y::T = rand(0:(n - 1))
+            m::K = 1900
+            ys::T = 0
+            q::T = 1
+            x::T = 0
+            while c == n - 2
+                c = rand(1:(n - 1))
             end
-            k::K = 0
-            G = 1
-            while k < r && G == 1
-                for i in 1:(m > (r - k) ? (r - k) : m)
-                    ys = y
+            while G == 1
+                x = y
+                for i in 1:r
                     y = y^2 % n
                     y = (y + c) % n
-                    q = (q * (x > y ? x - y : y - x)) % n
                 end
-                G = gcd(q, n)
-                k += m
+                k::K = 0
+                G = 1
+                while k < r && G == 1
+                    for i in 1:(m > (r - k) ? (r - k) : m)
+                        ys = y
+                        y = y^2 % n
+                        y = (y + c) % n
+                        q = (q * (x > y ? x - y : y - x)) % n
+                    end
+                    G = gcd(q, n)
+                    k += m
+                end
+                r *= 2
             end
-            r *= 2
+            G == n && (G = 1)
+            while G == 1
+                ys = ys^2 % n
+                ys = (ys + c) % n
+                G = gcd(x > ys ? x - ys : ys - x, n)
+            end
+            if G != n
+                recurse_with_subfactors!(G, div(n, G), h,
+                                         multiplicity,
+                                         (n, h, m) -> stack[n] += m)
+                break
+            end
         end
-        G == n && (G = 1)
-        while G == 1
-            ys = ys^2 % n
-            ys = (ys + c) % n
-            G = gcd(x > ys ? x - ys : ys - x, n)
-        end
-        if G != n
-            isprime(G) ? h[G] = get(h, G, 0) + 1 : pollardfactors!(G, h)
-            G2 = div(n,G)
-            isprime(G2) ? h[G2] = get(h, G2, 0) + 1 : pollardfactors!(G2, h)
-            return h
-        end
+    end
+    return h
+end
+
+# given two number a and b with multiplicity ma and mb respectively,
+# populate facts with pairwise-coprimes divisors of a and b (with
+# appropriate multiplicity) using repeated gcd applications, such
+# that prod(facts) == a^ma*b^mb
+function pairwise_coprime!{T}(a::T, ma::Int, b::T, mb::Int, facts::Factorization)
+    a == b && (facts[a] += ma+mb;
+               return b)
+    d = gcd(a, b)
+    d == 1 && (facts[a] += ma;
+               facts[b] += mb;
+               return b)
+    dd = pairwise_coprime!(a÷d, ma, d, ma+mb, facts)
+    # dd is a divisor of d, such that d/dd divides a/d, and hence
+    # d/dd is coprime to b/d; IOW, if there is a divisor of both d and
+    # b/d, then it is a divisor of dd
+    facts[dd] -= ma+mb
+    pairwise_coprime!(dd, ma+mb, b÷d, mb, facts)
+end
+
+
+# given two found non-trivial factors a and b=n/a of n, apply
+# recursively the algorithm (via `continuation!`) for the non-prime
+# factors, otherwise update the factors list `h`
+function recurse_with_subfactors!{T<:Integer}(a::T, b::T, h::Associative, multiplicity, continuation!)
+    facts = Factorization{T}()
+    pairwise_coprime!(a, multiplicity, b, multiplicity, facts)
+    for (f, mult) in facts
+        f != 1 && mult != 0 || continue
+        isprime(f) ?
+            h[f] = get(h, f, 0) + mult :
+            continuation!(f, h, mult)
     end
 end
 
