@@ -1,5 +1,6 @@
 using Primes
-using Base.Test
+using Compat
+using Compat.Test
 using DataStructures: SortedDict
 
 import Primes: isprime, primes, primesmask, factor, ismersenneprime, isrieselprime, Factorization
@@ -218,7 +219,7 @@ end
 
 # factor sets
 @test factor(Set, 100) == Set([2, 5])
-@test factor(IntSet, 100) == IntSet([2, 5])
+@test factor(BitSet, 100) == BitSet([2, 5])
 
 # factor other things and fail
 @test_throws MethodError factor(Int, 10)
@@ -254,7 +255,7 @@ ismersenneprime(9, check=false)
 @test isrieselprime(3, BigInt(2)^607 - 1)              # Case 2
 @test_throws ErrorException isrieselprime(20, 31)      # Case `else`
 
-# @testset "Factorization{$T} as an Associative" for T = (Int, UInt, BigInt)
+# @testset "Factorization{$T} as an AbstractDict" for T = (Int, UInt, BigInt)
 for T = (Int, UInt, BigInt)
     d = Dict(map(Pair, rand(T(1):T(100), 30), 1:30))
     f = Factorization{T}(d)
@@ -378,7 +379,7 @@ for T in (Int, UInt, BigInt)
             @test prodfactors(factor(C, n)) == n
         end
         if Primes.radical(n) == n
-            for C = (Set, IntSet)
+            for C = (Set, BitSet)
                 @test prodfactors(factor(C, n)) == n
             end
         end

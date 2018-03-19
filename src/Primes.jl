@@ -12,7 +12,7 @@ else
 end
 
 using Base: BitSigned
-using Base.Checked.checked_neg
+using Base.Checked: checked_neg
 
 export ismersenneprime, isrieselprime, nextprime, prevprime, prime, prodfactors, radical, totient
 
@@ -101,7 +101,7 @@ function primesmask(lo::Int, hi::Int)
     end
     return sieve
 end
-primesmask{T<:Integer}(lo::T, hi::T) = lo ≤ hi ≤ typemax(Int) ? primesmask(Int(lo), Int(hi)) :
+primesmask(lo::Integer, hi::Integer) = lo ≤ hi ≤ typemax(Int) ? primesmask(Int(lo), Int(hi)) :
     throw(ArgumentError("Both endpoints of the interval to sieve must be ≤ $(typemax(Int)), got $lo and $hi."))
 
 primesmask(limit::Int) = primesmask(1, limit)
@@ -240,7 +240,7 @@ isprime(n::Int128) = n < 2 ? false :
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
-function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
+function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     # check for special cases
     if n < 0
         h[-1] = 1
@@ -303,14 +303,14 @@ julia> collect(factor(0))
  0=>1
 ```
 """
-factor{T<:Integer}(n::T) = factor!(n, Factorization{T}())
+factor(n::T) where {T<:Integer} = factor!(n, Factorization{T}())
 
 
 """
     factor(ContainerType, n::Integer) -> ContainerType
 
 Return the factorization of `n` stored in a `ContainerType`, which must be a
-subtype of `Associative` or `AbstractArray`, a `Set`, or an `IntSet`.
+subtype of `AbstractDict` or `AbstractArray`, a `Set`, or an `BitSet`.
 
 ```julia
 julia> factor(DataStructures.SortedDict, 100)
@@ -342,18 +342,18 @@ julia> factor(Set, 100)
 Set([2,5])
 ```
 """
-factor{T<:Integer, D<:Associative}(::Type{D}, n::T) = factor!(n, D(Dict{T,Int}()))
-factor{T<:Integer, A<:AbstractArray}(::Type{A}, n::T) = A(factor(Vector{T}, n))
-factor{T<:Integer}(::Type{Vector{T}}, n::T) =
+factor(::Type{D}, n::T) where {T<:Integer, D<:AbstractDict} = factor!(n, D(Dict{T,Int}()))
+factor(::Type{A}, n::T) where {T<:Integer, A<:AbstractArray} = A(factor(Vector{T}, n))
+factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
     mapreduce(collect, vcat, Vector{T}(), [repeated(k, v) for (k, v) in factor(n)])
-factor{T<:Integer, S<:Union{Set,IntSet}}(::Type{S}, n::T) = S(keys(factor(n)))
-factor{T<:Any}(::Type{T}, n) = throw(MethodError(factor, (T, n)))
+factor(::Type{S}, n::T) where {T<:Integer, S<:Union{Set,BitSet}} = S(keys(factor(n)))
+factor(::Type{T}, n) where {T<:Any} = throw(MethodError(factor, (T, n)))
 
 """
     prodfactors(factors)
 
 Compute `n` (or the radical of `n` when `factors` is of type `Set` or
-`IntSet`) where `factors` is interpreted as the result of
+`BitSet`) where `factors` is interpreted as the result of
 `factor(typeof(factors), n)`. Note that if `factors` is of type
 `AbstractArray` or `Primes.Factorization`, then `prodfactors` is equivalent
 to `Base.prod`.
@@ -365,8 +365,8 @@ julia> prodfactors(factor(100))
 """
 function prodfactors end
 
-prodfactors{K}(factors::Associative{K}) = isempty(factors) ? one(K) : prod(p^i for (p, i) in factors)
-prodfactors(factors::Union{AbstractArray, Set, IntSet}) = prod(factors)
+prodfactors(factors::AbstractDict{K}) where {K} = isempty(factors) ? one(K) : prod(p^i for (p, i) in factors)
+prodfactors(factors::Union{AbstractArray, Set, BitSet}) = prod(factors)
 
 """
     Base.prod(factors::Primes.Factorization{T}) -> T
@@ -388,7 +388,7 @@ julia> radical(2*2*3)
 """
 radical(n) = prod(factor(Set, n))
 
-function pollardfactors!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
+function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     while true
         c::T = rand(1:(n - 1))
         G::T = 1
@@ -510,7 +510,7 @@ Compute the Euler totient function of the number whose prime factorization is
 given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
 when the factorization can be reused for other purposes.
 """
-function totient{T <: Integer}(f::Factorization{T})
+function totient(f::Factorization{T}) where T <: Integer
     if !isempty(f) && first(first(f)) == 0
         throw(ArgumentError("ϕ(0) is not defined"))
     end
@@ -541,9 +541,9 @@ function add_!(n::BigInt, x::Int)
     # TODO: Change `Any` to `Ref{BigInt}` when 0.6 support is dropped.
     # The two have the same effect but `Ref{BigInt}` won't be optimized on 0.6.
     if x < 0
-        ccall((:__gmpz_sub_ui, :libgmp), Void, (Any, Any, Culong), n, n, -x)
+        ccall((:__gmpz_sub_ui, :libgmp), Cvoid, (Any, Any, Culong), n, n, -x)
     else
-        ccall((:__gmpz_add_ui, :libgmp), Void, (Any, Any, Culong), n, n, x)
+        ccall((:__gmpz_add_ui, :libgmp), Cvoid, (Any, Any, Culong), n, n, x)
     end
     n
 end
@@ -638,7 +638,7 @@ function prevprime(n::Integer, i::Integer=1)
 end
 
 """
-    prime{T}(::Type{T}=Int, i::Integer)
+    prime(::Type{<:Integer}=Int, i::Integer)
 
 The `i`-th prime number.
 
@@ -651,7 +651,7 @@ julia> prime(3)
 
 ```
 """
-prime{T<:Integer}(::Type{T}, i::Integer) = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
+prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
 prime(i::Integer) = prime(Int, i)
 
 end # module
