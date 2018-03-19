@@ -1,5 +1,6 @@
 using Primes
-using Base.Test
+using Compat
+using Compat.Test
 using DataStructures: SortedDict
 
 import Primes: isprime, primes, primesmask, factor, ismersenneprime, isrieselprime, Factorization
@@ -378,7 +379,7 @@ for T in (Int, UInt, BigInt)
             @test prodfactors(factor(C, n)) == n
         end
         if Primes.radical(n) == n
-            for C = (Set, IntSet)
+            for C = (Set, BitSet)
                 @test prodfactors(factor(C, n)) == n
             end
         end

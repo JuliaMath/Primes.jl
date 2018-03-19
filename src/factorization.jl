@@ -1,20 +1,20 @@
 # implementation of a sorted dict (not optimized for speed) for storing
 # the factorization of an integer
 
-immutable Factorization{T<:Integer} <: Associative{T, Int}
+struct Factorization{T<:Integer} <: AbstractDict{T, Int}
     pe::Vector{Pair{T, Int}} # Prime-Exponent
 
     # Factorization{T}() where {T} = new(Vector{Pair{T, Int}}())
-    (::Type{Factorization{T}}){T<:Integer}() = new{T}(Vector{Pair{T, Int}}())
+    Factorization{T}() where {T<:Integer} = new{T}(Vector{Pair{T, Int}}())
 end
 
-function (::Type{Factorization{T}}){T<:Integer}(d::Associative)
+function Factorization{T}(d::Associative) where T<:Integer
     f = Factorization{T}()
     append!(f.pe, sort!(collect(d)))
     f
 end
 
-Base.convert{T}(::Type{Factorization}, d::Associative{T}) = Factorization{T}(d)
+Base.convert(::Type{Factorization}, d::Associative{T}) where {T} = Factorization{T}(d)
 
 Base.start(f::Factorization) = start(f.pe)
 Base.next(f::Factorization, i) = next(f.pe, i)
@@ -30,7 +30,7 @@ end
 
 Base.getindex(f::Factorization, p::Integer) = get(f, p, 0)
 
-function Base.setindex!{T}(f::Factorization{T}, e::Int, p::Integer)
+function Base.setindex!(f::Factorization{T}, e::Int, p::Integer) where T
     found = searchsorted(f.pe, p, by=first)
     if isempty(found)
         insert!(f.pe, first(found), T(p)=>e)
