@@ -12,7 +12,7 @@ else
 end
 
 using Base: BitSigned
-using Base.Checked.checked_neg
+using Base.Checked: checked_neg
 
 export ismersenneprime, isrieselprime, nextprime, prevprime, prime, prodfactors, radical, totient
 
@@ -240,7 +240,7 @@ isprime(n::Int128) = n < 2 ? false :
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
-function factor!{T<:Integer,K<:Integer}(n::T, h::Associative{K,Int})
+function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     # check for special cases
     if n < 0
         h[-1] = 1
@@ -310,7 +310,7 @@ factor(n::T) where {T<:Integer} = factor!(n, Factorization{T}())
     factor(ContainerType, n::Integer) -> ContainerType
 
 Return the factorization of `n` stored in a `ContainerType`, which must be a
-subtype of `Associative` or `AbstractArray`, a `Set`, or an `IntSet`.
+subtype of `AbstractDict` or `AbstractArray`, a `Set`, or an `BitSet`.
 
 ```julia
 julia> factor(DataStructures.SortedDict, 100)
@@ -342,7 +342,7 @@ julia> factor(Set, 100)
 Set([2,5])
 ```
 """
-factor(::Type{D}, n::T) where {T<:Integer, D<:Associative} = factor!(n, D(Dict{T,Int}()))
+factor(::Type{D}, n::T) where {T<:Integer, D<:AbstractDict} = factor!(n, D(Dict{T,Int}()))
 factor(::Type{A}, n::T) where {T<:Integer, A<:AbstractArray} = A(factor(Vector{T}, n))
 factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
     mapreduce(collect, vcat, Vector{T}(), [repeated(k, v) for (k, v) in factor(n)])
@@ -353,7 +353,7 @@ factor(::Type{T}, n) where {T<:Any} = throw(MethodError(factor, (T, n)))
     prodfactors(factors)
 
 Compute `n` (or the radical of `n` when `factors` is of type `Set` or
-`IntSet`) where `factors` is interpreted as the result of
+`BitSet`) where `factors` is interpreted as the result of
 `factor(typeof(factors), n)`. Note that if `factors` is of type
 `AbstractArray` or `Primes.Factorization`, then `prodfactors` is equivalent
 to `Base.prod`.
@@ -365,7 +365,7 @@ julia> prodfactors(factor(100))
 """
 function prodfactors end
 
-prodfactors(factors::Associative{K}) where {K} = isempty(factors) ? one(K) : prod(p^i for (p, i) in factors)
+prodfactors(factors::AbstractDict{K}) where {K} = isempty(factors) ? one(K) : prod(p^i for (p, i) in factors)
 prodfactors(factors::Union{AbstractArray, Set, BitSet}) = prod(factors)
 
 """
@@ -388,7 +388,7 @@ julia> radical(2*2*3)
 """
 radical(n) = prod(factor(Set, n))
 
-function pollardfactors!(n::T, h::Associative{K,Int}) where {T<:Integer,K<:Integer}
+function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     while true
         c::T = rand(1:(n - 1))
         G::T = 1

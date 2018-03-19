@@ -8,13 +8,13 @@ struct Factorization{T<:Integer} <: AbstractDict{T, Int}
     Factorization{T}() where {T<:Integer} = new{T}(Vector{Pair{T, Int}}())
 end
 
-function Factorization{T}(d::Associative) where T<:Integer
+function Factorization{T}(d::AbstractDict) where T<:Integer
     f = Factorization{T}()
     append!(f.pe, sort!(collect(d)))
     f
 end
 
-Base.convert(::Type{Factorization}, d::Associative{T}) where {T} = Factorization{T}(d)
+Base.convert(::Type{Factorization}, d::AbstractDict{T}) where {T} = Factorization{T}(d)
 
 Base.start(f::Factorization) = start(f.pe)
 Base.next(f::Factorization, i) = next(f.pe, i)
