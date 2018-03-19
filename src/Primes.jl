@@ -541,9 +541,9 @@ function add_!(n::BigInt, x::Int)
     # TODO: Change `Any` to `Ref{BigInt}` when 0.6 support is dropped.
     # The two have the same effect but `Ref{BigInt}` won't be optimized on 0.6.
     if x < 0
-        ccall((:__gmpz_sub_ui, :libgmp), Void, (Any, Any, Culong), n, n, -x)
+        ccall((:__gmpz_sub_ui, :libgmp), Cvoid, (Any, Any, Culong), n, n, -x)
     else
-        ccall((:__gmpz_add_ui, :libgmp), Void, (Any, Any, Culong), n, n, x)
+        ccall((:__gmpz_add_ui, :libgmp), Cvoid, (Any, Any, Culong), n, n, x)
     end
     n
 end
