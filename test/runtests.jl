@@ -1,6 +1,5 @@
 using Primes
-using Compat
-using Compat.Test
+using Test
 using DataStructures: SortedDict
 
 import Primes: isprime, primes, primesmask, factor, ismersenneprime, isrieselprime, Factorization

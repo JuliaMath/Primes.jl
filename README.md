@@ -1,6 +1,6 @@
 # Primes.jl
 
-[![Primes](http://pkg.julialang.org/badges/Primes_0.6.svg)](http://pkg.julialang.org/?pkg=Primes)
+[![Primes](http://pkg.julialang.org/badges/Primes_0.6.svg)](http://pkg.julialang.org/?pkg=Primes&ver=0.3)
 [![Primes](http://pkg.julialang.org/badges/Primes_0.7.svg)](http://pkg.julialang.org/?pkg=Primes)
 [![Build Status](https://travis-ci.org/JuliaMath/Primes.jl.svg?branch=master)](https://travis-ci.org/JuliaMath/Primes.jl)
 [![Windows Build](https://ci.appveyor.com/api/projects/status/ao64pk44lwo0092r/branch/master?svg=true)](https://ci.appveyor.com/project/ararslan/primes-jl/branch/master)

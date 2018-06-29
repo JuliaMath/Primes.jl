@@ -2,19 +2,13 @@
 __precompile__()
 module Primes
 
-using Compat
-using Compat.Iterators: repeated
-
-if isdefined(Base,:isprime)
-    import Base: isprime, primes, primesmask, factor
-else
-    export isprime, primes, primesmask, factor
-end
+using Base.Iterators: repeated
 
 using Base: BitSigned
 using Base.Checked: checked_neg
 
-export ismersenneprime, isrieselprime, nextprime, prevprime, prime, prodfactors, radical, totient
+export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
+       nextprime, prevprime, prime, prodfactors, radical, totient
 
 include("factorization.jl")
 

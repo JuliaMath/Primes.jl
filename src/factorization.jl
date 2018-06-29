@@ -4,7 +4,6 @@
 struct Factorization{T<:Integer} <: AbstractDict{T, Int}
     pe::Vector{Pair{T, Int}} # Prime-Exponent
 
-    # Factorization{T}() where {T} = new(Vector{Pair{T, Int}}())
     Factorization{T}() where {T<:Integer} = new{T}(Vector{Pair{T, Int}}())
 end
 
@@ -14,12 +13,11 @@ function Factorization{T}(d::AbstractDict) where T<:Integer
     f
 end
 
-Base.convert(::Type{Factorization}, d::AbstractDict{T}) where {T} = Factorization{T}(d)
+Factorization(d::AbstractDict{T}) where {T<:Integer} = Factorization{T}(d)
+Base.convert(::Type{Factorization}, d::AbstractDict) = Factorization(d)
 
-Base.start(f::Factorization) = start(f.pe)
-Base.next(f::Factorization, i) = next(f.pe, i)
-Base.done(f::Factorization, i) = done(f.pe, i)
-
+Base.iterate(f::Factorization) = iterate(f.pe)
+Base.iterate(f::Factorization, i) = iterate(f.pe, i)
 
 function Base.get(f::Factorization, p, default)
     found = searchsorted(f.pe, p, by=first)
