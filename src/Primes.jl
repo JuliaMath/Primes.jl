@@ -338,8 +338,13 @@ Set([2,5])
 """
 factor(::Type{D}, n::T) where {T<:Integer, D<:AbstractDict} = factor!(n, D(Dict{T,Int}()))
 factor(::Type{A}, n::T) where {T<:Integer, A<:AbstractArray} = A(factor(Vector{T}, n))
-factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
-    mapreduce(collect, vcat, Vector{T}(), [repeated(k, v) for (k, v) in factor(n)])
+if VERSION >= v"0.7.0-beta.81"
+    factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
+        mapreduce(collect, vcat, [repeated(k, v) for (k, v) in factor(n)], init=Vector{T}())
+else
+    factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
+        mapreduce(collect, vcat, Vector{T}(), [repeated(k, v) for (k, v) in factor(n)])
+end
 factor(::Type{S}, n::T) where {T<:Integer, S<:Union{Set,BitSet}} = S(keys(factor(n)))
 factor(::Type{T}, n) where {T<:Any} = throw(MethodError(factor, (T, n)))
 
