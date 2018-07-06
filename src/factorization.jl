@@ -16,8 +16,7 @@ end
 Factorization(d::AbstractDict{T}) where {T<:Integer} = Factorization{T}(d)
 Base.convert(::Type{Factorization}, d::AbstractDict) = Factorization(d)
 
-Base.iterate(f::Factorization) = iterate(f.pe)
-Base.iterate(f::Factorization, i) = iterate(f.pe, i)
+Base.iterate(f::Factorization, state...) = iterate(f.pe, state...)
 
 function Base.get(f::Factorization, p, default)
     found = searchsorted(f.pe, p, by=first)
