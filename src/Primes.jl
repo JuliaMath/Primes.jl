@@ -1,5 +1,5 @@
 # This includes parts that were formerly a part of Julia. License is MIT: http://julialang.org/license
-#__precompile__()
+__precompile__()
 module Primes
 
 using Base.Iterators: repeated
