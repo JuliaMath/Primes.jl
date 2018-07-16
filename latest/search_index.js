@@ -21,15 +21,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Home",
     "title": "Installation",
     "category": "section",
-    "text": "The package is available for Julia versions 0.4 and up. To install it, runPkg.add(\"Primes\")from the Julia REPL."
-},
-
-{
-    "location": "index.html#Note-1",
-    "page": "Home",
-    "title": "Note",
-    "category": "section",
-    "text": "Prior to Julia 0.5, these (or similar) functions were available in Julia\'s Base module. Because of this, the symbols from this package are not exported on Julia 0.4 to avoid naming conflicts. In this case, the symbols will need to be explicitly imported or called with the prefix Primes. For example,using Primes\nimport Primes: isprime, primes, primesmask, factorThis is not necessary for Julia versions 0.5 or later."
+    "text": "The package is available for Julia versions 0.4 and up, but if you are not using Julia version 0.7 or higher, please read the documentation for the appropriate realease.To install it, runPkg.add(\"Primes\")from the Julia REPL."
 },
 
 {
