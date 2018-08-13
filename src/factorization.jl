@@ -40,4 +40,4 @@ end
 Base.length(f::Factorization) = length(f.pe)
 
 Base.show(io::IO, ::MIME{Symbol("text/plain")}, f::Factorization) =
-    join(io, isempty(f) ? "1" : [(e == 1 ? "$p" : "$p^$e") for (p,e) in f.pe], " ⋅ ")
+    join(io, isempty(f) ? "1" : [(e == 1 ? "$p" : "$p^$e") for (p,e) in f.pe], " * ")
