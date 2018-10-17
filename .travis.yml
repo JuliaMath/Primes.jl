@@ -12,6 +12,6 @@ notifications:
 #  - if [[ -a .git/shallow ]]; then git fetch --unshallow; fi
 #  - julia -e 'Pkg.clone(pwd()); Pkg.build("Primes"); Pkg.test("Primes"; coverage=true)'
 after_success:
-  - julia -e 'Pkg.add("Coverage"); Pkg.add("Documenter")'
+  - julia -e 'Pkg.add("Coverage"); ps=Pkg.PackageSpec(name="Documenter", version="0.19"); Pkg.add(ps); Pkg.pin(ps)'
   - julia -e 'cd(Pkg.dir("Primes")); using Coverage; Coveralls.submit(Coveralls.process_folder())'
   - julia -e 'cd(Pkg.dir("Primes")); include(joinpath("docs", "make.jl"))'
