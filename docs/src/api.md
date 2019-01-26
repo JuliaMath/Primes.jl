@@ -1,3 +1,7 @@
+```@meta
+DocTestSetup = :(using Primes)
+```
+
 # Prime number functions
 
 ## Prime factorization

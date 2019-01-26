@@ -1,5 +1,5 @@
-# This includes parts that were formerly a part of Julia. License is MIT: http://julialang.org/license
-VERSION < v"0.7.0-beta2.199" && __precompile__()
+# This file includes code that was formerly a part of Julia. License is MIT: http://julialang.org/license
+
 module Primes
 
 using Base.Iterators: repeated
@@ -338,13 +338,8 @@ Set([2,5])
 """
 factor(::Type{D}, n::T) where {T<:Integer, D<:AbstractDict} = factor!(n, D(Dict{T,Int}()))
 factor(::Type{A}, n::T) where {T<:Integer, A<:AbstractArray} = A(factor(Vector{T}, n))
-if VERSION >= v"0.7.0-beta.81"
-    factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
-        mapreduce(collect, vcat, [repeated(k, v) for (k, v) in factor(n)], init=Vector{T}())
-else
-    factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
-        mapreduce(collect, vcat, Vector{T}(), [repeated(k, v) for (k, v) in factor(n)])
-end
+factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
+    mapreduce(collect, vcat, [repeated(k, v) for (k, v) in factor(n)], init=Vector{T}())
 factor(::Type{S}, n::T) where {T<:Integer, S<:Union{Set,BitSet}} = S(keys(factor(n)))
 factor(::Type{T}, n) where {T<:Any} = throw(MethodError(factor, (T, n)))
 
@@ -435,12 +430,6 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
     end
 end
 
-if VERSION >= v"0.7.0-beta.183"
-    ndigits2(n) = ndigits(n, base=2)
-else
-    ndigits2(n) = ndigits(n, 2)
-end
-
 """
     ismersenneprime(M::Integer; [check::Bool = true]) -> Bool
 
@@ -461,7 +450,7 @@ true
 """
 function ismersenneprime(M::Integer; check::Bool = true)
     if check
-        d = ndigits2(M)
+        d = ndigits(M, base=2)
         M >= 0 && isprime(d) && (M >> d == 0) ||
             throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
     end
@@ -486,7 +475,7 @@ true
 ```
 """
 function isrieselprime(k::Integer, Q::Integer)
-    n = ndigits2(Q)
+    n = ndigits(Q, base=2)
     0 < k < Q || throw(ArgumentError("The condition 0 < k < Q must be met."))
     if k == 1 && isodd(n)
         return n % 4 == 3 ? ll_primecheck(Q, 3) : ll_primecheck(Q)
@@ -500,7 +489,7 @@ end
 
 # LL backend -- not for export
 function ll_primecheck(X::Integer, s::Integer = 4)
-    S, N = BigInt(s), BigInt(ndigits2(X))
+    S, N = BigInt(s), BigInt(ndigits(X, base=2))
     X < 7 && throw(ArgumentError("The condition X ≥ 7 must be met."))
     for i in 1:(N - 2)
         S = (S^2 - 2) % X
@@ -543,12 +532,10 @@ end
 
 # modify a BigInt in-place
 function add_!(n::BigInt, x::Int)
-    # TODO: Change `Any` to `Ref{BigInt}` when 0.6 support is dropped.
-    # The two have the same effect but `Ref{BigInt}` won't be optimized on 0.6.
     if x < 0
-        ccall((:__gmpz_sub_ui, :libgmp), Cvoid, (Any, Any, Culong), n, n, -x)
+        ccall((:__gmpz_sub_ui, :libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), n, n, -x)
     else
-        ccall((:__gmpz_add_ui, :libgmp), Cvoid, (Any, Any, Culong), n, n, x)
+        ccall((:__gmpz_add_ui, :libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), n, n, x)
     end
     n
 end
