@@ -1,7 +1,7 @@
 var documenterSearchIndex = {"docs": [
 
 {
-    "location": "index.html#",
+    "location": "#",
     "page": "Home",
     "title": "Home",
     "category": "page",
@@ -9,7 +9,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#Primes.jl-1",
+    "location": "#Primes.jl-1",
     "page": "Home",
     "title": "Primes.jl",
     "category": "section",
@@ -17,7 +17,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "index.html#Installation-1",
+    "location": "#Installation-1",
     "page": "Home",
     "title": "Installation",
     "category": "section",
@@ -25,15 +25,15 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#",
+    "location": "api/#",
     "page": "Functions",
     "title": "Functions",
     "category": "page",
-    "text": ""
+    "text": "DocTestSetup = :(using Primes)"
 },
 
 {
-    "location": "api.html#Prime-number-functions-1",
+    "location": "api/#Prime-number-functions-1",
     "page": "Functions",
     "title": "Prime number functions",
     "category": "section",
@@ -41,7 +41,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.factor",
+    "location": "api/#Primes.factor",
     "page": "Functions",
     "title": "Primes.factor",
     "category": "function",
@@ -49,7 +49,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.prodfactors",
+    "location": "api/#Primes.prodfactors",
     "page": "Functions",
     "title": "Primes.prodfactors",
     "category": "function",
@@ -57,7 +57,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.radical",
+    "location": "api/#Primes.radical",
     "page": "Functions",
     "title": "Primes.radical",
     "category": "function",
@@ -65,7 +65,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Prime-factorization-1",
+    "location": "api/#Prime-factorization-1",
     "page": "Functions",
     "title": "Prime factorization",
     "category": "section",
@@ -73,7 +73,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.primes",
+    "location": "api/#Primes.primes",
     "page": "Functions",
     "title": "Primes.primes",
     "category": "function",
@@ -81,7 +81,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.nextprime",
+    "location": "api/#Primes.nextprime",
     "page": "Functions",
     "title": "Primes.nextprime",
     "category": "function",
@@ -89,7 +89,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.prevprime",
+    "location": "api/#Primes.prevprime",
     "page": "Functions",
     "title": "Primes.prevprime",
     "category": "function",
@@ -97,7 +97,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.prime",
+    "location": "api/#Primes.prime",
     "page": "Functions",
     "title": "Primes.prime",
     "category": "function",
@@ -105,7 +105,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Generating-prime-numbers-1",
+    "location": "api/#Generating-prime-numbers-1",
     "page": "Functions",
     "title": "Generating prime numbers",
     "category": "section",
@@ -113,7 +113,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.isprime",
+    "location": "api/#Primes.isprime",
     "page": "Functions",
     "title": "Primes.isprime",
     "category": "function",
@@ -121,7 +121,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.ismersenneprime",
+    "location": "api/#Primes.ismersenneprime",
     "page": "Functions",
     "title": "Primes.ismersenneprime",
     "category": "function",
@@ -129,7 +129,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Primes.primesmask",
+    "location": "api/#Primes.primesmask",
     "page": "Functions",
     "title": "Primes.primesmask",
     "category": "function",
@@ -137,7 +137,7 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api.html#Identifying-prime-numbers-1",
+    "location": "api/#Identifying-prime-numbers-1",
     "page": "Functions",
     "title": "Identifying prime numbers",
     "category": "section",
