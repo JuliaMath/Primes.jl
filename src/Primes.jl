@@ -470,7 +470,7 @@ if the combination of k and n is not supported.
 julia> isrieselprime(1, 2^11 - 1)  # == ismersenneprime(2^11 - 1)
 false
 
-julia> isrieselprime(3, 2^607 - 1)
+julia> isrieselprime(3, big(2)^607 - 1)
 true
 ```
 """
