@@ -9,7 +9,6 @@ DocTestSetup = :(using Primes)
 ```@docs
 Primes.factor
 Primes.prodfactors
-Primes.radical
 ```
 
 ## Generating prime numbers
@@ -27,4 +26,11 @@ Primes.prime
 Primes.isprime
 Primes.ismersenneprime
 Primes.primesmask
+```
+
+## Multiplicative functions
+
+```@docs
+Primes.radical
+Primes.totient
 ```
