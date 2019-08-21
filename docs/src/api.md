@@ -28,7 +28,7 @@ Primes.ismersenneprime
 Primes.primesmask
 ```
 
-## Multiplicative functions
+## Number-theoretic functions
 
 ```@docs
 Primes.radical
