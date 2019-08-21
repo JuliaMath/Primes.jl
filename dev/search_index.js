@@ -57,19 +57,11 @@ var documenterSearchIndex = {"docs": [
 },
 
 {
-    "location": "api/#Primes.radical",
-    "page": "Functions",
-    "title": "Primes.radical",
-    "category": "function",
-    "text": "radical(n::Integer)\n\nCompute the radical of n, i.e. the largest square-free divisor of n. This is equal to the product of the distinct prime numbers dividing n.\n\njulia> radical(2*2*3)\n6\n\n\n\n\n\n"
-},
-
-{
     "location": "api/#Prime-factorization-1",
     "page": "Functions",
     "title": "Prime factorization",
     "category": "section",
-    "text": "Primes.factor\nPrimes.prodfactors\nPrimes.radical"
+    "text": "Primes.factor\nPrimes.prodfactors"
 },
 
 {
@@ -142,6 +134,30 @@ var documenterSearchIndex = {"docs": [
     "title": "Identifying prime numbers",
     "category": "section",
     "text": "Primes.isprime\nPrimes.ismersenneprime\nPrimes.primesmask"
+},
+
+{
+    "location": "api/#Primes.radical",
+    "page": "Functions",
+    "title": "Primes.radical",
+    "category": "function",
+    "text": "radical(n::Integer)\n\nCompute the radical of n, i.e. the largest square-free divisor of n. This is equal to the product of the distinct prime numbers dividing n.\n\njulia> radical(2*2*3)\n6\n\n\n\n\n\n"
+},
+
+{
+    "location": "api/#Primes.totient",
+    "page": "Functions",
+    "title": "Primes.totient",
+    "category": "function",
+    "text": "totient(f::Factorization{T}) -> T\n\nCompute the Euler totient function of the number whose prime factorization is given by f. This method may be preferable to totient(::Integer) when the factorization can be reused for other purposes.\n\n\n\n\n\ntotient(n::Integer) -> Integer\n\nCompute the Euler totient function ϕ(n), which counts the number of positive integers less than or equal to n that are relatively prime to n (that is, the number of positive integers m ≤ n with gcd(m, n) == 1). The totient function of n when n is negative is defined to be totient(abs(n)).\n\n\n\n\n\n"
+},
+
+{
+    "location": "api/#Number-theoretic-functions-1",
+    "page": "Functions",
+    "title": "Number-theoretic functions",
+    "category": "section",
+    "text": "Primes.radical\nPrimes.totient"
 },
 
 ]}
