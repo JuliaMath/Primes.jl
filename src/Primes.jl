@@ -646,4 +646,26 @@ julia> prime(3)
 prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
 prime(i::Integer) = prime(Int, i)
 
+"""
+    moebiusmu(n::Integer) -> Int
+    moebiusmu(f::Factorization) -> Int
+
+Compute the Moebius function of the integer `n`, which is ``(-1)`^k`` if `n`has `k` *distinct* prme factors,
+and 0 if it has a multiple prime factor.
+
+If the factorization of `n` is already known, it can passed into the function directly. This is
+useful, as finding the factorization can be expensive.
+
+# Example
+```jldoctest
+julia> map(moebiusmu, -2:10)
+[-1, 1, -1, 1, -1, -1, 0, -1, 1, -1, 0, 0, 1]
+
+julia> moebiusmu(factor(12))
+0
+```
+"""
+moebiusmu(f::Factorization{T}) where T <: Integer = reduce(*, e == 1 ? -1 : 0 for (p, e) in f if p ≥ 0; init=1)
+moebiusmu(n::Integer) = moebiusmu(factor(n))
+                     
 end # module
