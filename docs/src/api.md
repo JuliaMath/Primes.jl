@@ -33,4 +33,5 @@ Primes.primesmask
 ```@docs
 Primes.radical
 Primes.totient
+Primes.moebiusmu
 ```
