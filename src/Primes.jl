@@ -667,5 +667,31 @@ julia> moebiusmu(factor(12))
 """
 moebiusmu(f::Factorization{T}) where T <: Integer = reduce(*, e == 1 ? -1 : 0 for (p, e) in f if p ≥ 0; init=1)
 moebiusmu(n::Integer) = moebiusmu(factor(n))
-                     
+
+"""
+    liouvillelambda(n::Integer) -> Int
+    liouvillelambda(f::Factorization) -> Int
+
+Compute Liouville's λ function, which gives ``(-1)^k`` where `k` is the number of prime factors of `n`
+counting multiplicity. We assume `n` to be non-zero. Also, if `n` is negative, we use the absolute
+value instead.
+
+If the factorization of `n` is already known, it can passed into the function directly. This is
+useful, as finding the factorization can be expensive.
+
+# Example
+```jldoctest
+julia> map(liouvillelambda, 1:10)
+[1, -1, -1, 1, -1, 1, -1, -1, 1, 1]
+
+julia> liouvillelambda(factor(30))
+-1
+```
+
+# External links
+* [Liouville function](https://en.wikipedia.org/wiki/Liouville_function) on Wikipedia.
+"""
+liouvillelambda(f::Dict{T,Int}) where T <: Integer = (-1)^reduce(+, e for (p, e) in f if p ≥ 0; init=0)
+liouvillelambda(n::Integer) = liouvillelambda(factor(n))
+                                          
 end # module
