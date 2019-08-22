@@ -650,8 +650,8 @@ prime(i::Integer) = prime(Int, i)
     moebiusmu(n::Integer) -> Int
     moebiusmu(f::Factorization) -> Int
 
-Compute the Moebius function of the integer `n`, which is ``(-1)`^k`` if `n`has `k` *distinct* prme factors,
-and 0 if it has a multiple prime factor.
+Compute the Moebius function of the integer `n`, which is ``(-1)^k`` if `n` has `k` *distinct* prime factors,
+and 0 if it has a multiple prime factor. Also, if `n` is negative, we apply it to `abs(n)`, and `moebiusmu(0)=0`.
 
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
