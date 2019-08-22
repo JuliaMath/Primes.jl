@@ -646,6 +646,9 @@ julia> prime(3)
 prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
 prime(i::Integer) = prime(Int, i)
 
+multfunction(a::Function, n::Integer) = multfunction(a, factor(n))
+multfunction(a::Function, f::Factorization) = reduce(*, a(p, e) for (p, e) in f if p ≥ 0; init=1)
+
 """
     moebiusmu(n::Integer) -> Int
     moebiusmu(f::Factorization) -> Int
@@ -665,8 +668,14 @@ julia> moebiusmu(factor(12))
 0
 ```
 """
-moebiusmu(f::Factorization{T}) where T <: Integer = reduce(*, e == 1 ? -1 : 0 for (p, e) in f if p ≥ 0; init=1)
-moebiusmu(n::Integer) = moebiusmu(factor(n))
+# moebiusmu(f::Dict{T,Int}) where T <: Integer = reduce(*, e == 1 ? -1 : 0 for (p, e) in f if p ≥ 0; init=1)
+# moebiusmu(n::Integer) = moebiusmu(factor(n))
+
+moebiusmu_aux(p, e) = e == 1 ? -1 : 0
+moebiusmu(n::Integer) = multfunction(moebiusmu_aux, n)
+moebiusmu(f::Factorization) = multfunction(moebiusmu_aux, f)
+
+
 
 """
     liouvillelambda(n::Integer) -> Int
@@ -693,5 +702,34 @@ julia> liouvillelambda(factor(30))
 """
 liouvillelambda(f::Dict{T,Int}) where T <: Integer = (-1)^reduce(+, e for (p, e) in f if p ≥ 0; init=0)
 liouvillelambda(n::Integer) = liouvillelambda(factor(n))
+
+
+
+"""
+    divisorcount(n::Integer)
+    divisorcount(f::Dict{T,Int})
+
+Compute the number of positive divisors of `n`.
+
+If the factorization of `n` is already known, it can passed into the function directly. This is
+useful, as finding the factorization can be expensive.
+"""
+
+divisorcount(n::Integer) = multfunction((p, e) -> e, n)
+divisorcount(f::Factorization) = multfunction((p, e) -> e, f)
+
+
+"""
+    divisorsum(n::Integer)
+    divisorsum(f::Dict{T,Int})
+    
+The sum of all positive divisors of `n`.
+
+If the factorization of `n` is already known, it can passed into the function directly. This is
+useful, as finding the factorization can be expensive.
+"""
+divisorsum(n::Integer) = multfunction((p, e) -> (p^(e+1)-1) ÷ (p-1), n)
+divisorsum(f::Factorization) = multfunction((p, e) -> (p^(e+1)-1) ÷ (p-1), f)
+
                                           
 end # module
