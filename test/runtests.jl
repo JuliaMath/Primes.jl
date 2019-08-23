@@ -420,19 +420,3 @@ end
     @test map(divisorcount, ns) == map(divisorcount, -ns) == divisorcount_res
     @test map(divisorsum, ns) == map(divisorsum, -ns) == divisorsum_res
 end
-
-@testset "moebius(), liouville(), divisorcount(), divisorsum()" begin
-    some_coprime_numbers = BigInt[
-        450000000, 1099427429702334733, 200252151854851, 1416976291499, 7504637909,
-        1368701327204614490999, 662333585807659, 340557446329, 1009091
-    ]
-    moebius_res = [0, 0, 0, 0, 0, 0, 0, 0, -1]
-    liouville_res = [-1, -1, -1, 1, 1, 1, 1, 1, -1]
-    divisorcount_res = [216, 308, 90, 40, 24, 120, 40, 27, 8]
-    divisorsum_res = [1618651515, 1528455927220372220, 234749079860820, 1557002958720, \
-8042136960, 1442725739861582095920, 691292021934800, 353095503663, \
-1039584]
-    for n in some_coprime_numbers
-        @test moebius(n) == 
-    end
-end
