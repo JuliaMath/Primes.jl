@@ -8,7 +8,8 @@ using Base: BitSigned
 using Base.Checked: checked_neg
 
 export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
-       nextprime, prevprime, prime, prodfactors, radical, totient
+       nextprime, prevprime, prime, prodfactors, radical, totient,
+       moebius, liouville, divisorcount, divisorsum
 
 include("factorization.jl")
 
@@ -646,90 +647,105 @@ julia> prime(3)
 prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
 prime(i::Integer) = prime(Int, i)
 
-multfunction(a::Function, n::Integer) = multfunction(a, factor(n))
-multfunction(a::Function, f::Factorization) = reduce(*, a(p, e) for (p, e) in f if p ≥ 0; init=1)
+
+
+assurenonzero(n::Integer) = begin if n == 0 throw(ArgumentError("Argument must be non-zero")) end; n end
+
+function assurenonzero(f::Factorization{T}) where T <: Integer
+    if !isempty(f) && first(first(f)) == 0
+        throw(ArgumentError("Argument must be non-zero"))
+    end
+    f
+end
+
+multfunct(a::Function, n::Integer) = multfunct(a, factor(n))
+multfunct(a::Function, f::Factorization{T}) where T <: Integer =
+    reduce(*, a(p, e) for (p, e) in f if p ≥ 0; init=1)
 
 """
-    moebiusmu(n::Integer) -> Int
-    moebiusmu(f::Factorization) -> Int
+    moebius(n::Integer) -> Int
+    moebius(f::Factorization) -> Int
 
-Compute the Moebius function of the integer `n`, which is ``(-1)^k`` if `n` has `k` *distinct* prime factors,
-and 0 if it has a multiple prime factor. Also, if `n` is negative, we apply it to `abs(n)`, and `moebiusmu(0)=0`.
+Compute the Moebius function of the integer `n`, which is ``(-1)^k`` if `n` has `k` prime factors which
+are all distinct, and 0 if it has a multiple prime factor. Also, `moebius(0)=0`.
 
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
 
 # Example
 ```jldoctest
-julia> map(moebiusmu, -2:10)
+julia> map(moebius, -2:10)
 [-1, 1, -1, 1, -1, -1, 0, -1, 1, -1, 0, 0, 1]
 
-julia> moebiusmu(factor(12))
+julia> moebius(factor(12))
 0
 ```
+
+# External links
+* [Möbius function](https://en.wikipedia.org/wiki/Möbius_function) on Wikipedia.
 """
 # moebiusmu(f::Dict{T,Int}) where T <: Integer = reduce(*, e == 1 ? -1 : 0 for (p, e) in f if p ≥ 0; init=1)
 # moebiusmu(n::Integer) = moebiusmu(factor(n))
 
-moebiusmu_aux(p, e) = e == 1 ? -1 : 0
-moebiusmu(n::Integer) = multfunction(moebiusmu_aux, n)
-moebiusmu(f::Factorization) = multfunction(moebiusmu_aux, f)
+m(p, e) = e == 1 ? -1 : 0
+moebius(n::Integer) = multfunct(m, n)
+moebius(f::Factorization{T}) where T <: Integer = multfunct(m, f)
 
 
 
 """
-    liouvillelambda(n::Integer) -> Int
-    liouvillelambda(f::Factorization) -> Int
+    liouville(n::Integer) -> Int
+    liouville(f::Factorization) -> Int
 
-Compute Liouville's λ function, which gives ``(-1)^k`` where `k` is the number of prime factors of `n`
-counting multiplicity. We assume `n` to be non-zero. Also, if `n` is negative, we use the absolute
-value instead.
+Compute Liouville's λ function, which gives ``(-1)^k`` where `k` is the number of prime factors
+of the non-zero integer `n`, counting multiplicity. 
 
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
 
 # Example
 ```jldoctest
-julia> map(liouvillelambda, 1:10)
+julia> map(liouville, 1:10)
 [1, -1, -1, 1, -1, 1, -1, -1, 1, 1]
 
-julia> liouvillelambda(factor(30))
+julia> liouville(factor(-30))
 -1
 ```
 
 # External links
 * [Liouville function](https://en.wikipedia.org/wiki/Liouville_function) on Wikipedia.
 """
-liouvillelambda(f::Dict{T,Int}) where T <: Integer = (-1)^reduce(+, e for (p, e) in f if p ≥ 0; init=0)
-liouvillelambda(n::Integer) = liouvillelambda(factor(n))
-
+liouville(n::Integer) = liouville(factor(assurenonzero(n)))
+liouville(f::Factorization{T}) where T <: Integer =
+    (-1)^reduce(+, e for (p, e) in assurenonzero(f) if p ≥ 0; init=0)
 
 
 """
     divisorcount(n::Integer)
-    divisorcount(f::Dict{T,Int})
+    divisorcount(f::Factorization)
 
-Compute the number of positive divisors of `n`.
+Compute the number of positive divisors of the nonzero integer `n`.
 
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
 """
 
-divisorcount(n::Integer) = multfunction((p, e) -> e, n)
-divisorcount(f::Factorization) = multfunction((p, e) -> e, f)
+divisorcount(n::Integer) = multfunct((p, e) -> e, assurenonzero(n))
+divisorcount(f::Factorization{T}) where T <: Integer = multfunct((p, e) -> e, assurenonzero(f))
 
 
 """
     divisorsum(n::Integer)
-    divisorsum(f::Dict{T,Int})
+    divisorsum(f::Factorization)
     
-The sum of all positive divisors of `n`.
+The sum of all positive divisors of the nonzero integer `n`.
 
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
 """
-divisorsum(n::Integer) = multfunction((p, e) -> (p^(e+1)-1) ÷ (p-1), n)
-divisorsum(f::Factorization) = multfunction((p, e) -> (p^(e+1)-1) ÷ (p-1), f)
+δ(p, e) = (p^(e+1)-1) ÷ (p-1)
+divisorsum(n::Integer) = multfunct(δ, assurenonzero(n))
+divisorsum(f::Factorization{T}) where T <: Integer = multfunct(δ, assurenonzero(f))
 
                                           
 end # module

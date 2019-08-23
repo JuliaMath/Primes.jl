@@ -33,5 +33,8 @@ Primes.primesmask
 ```@docs
 Primes.radical
 Primes.totient
-Primes.moebiusmu
+Primes.moebius
+Primes.liouville
+Primes.divisorcount
+Primes.divisorsum
 ```
