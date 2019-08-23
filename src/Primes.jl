@@ -332,6 +332,7 @@ true
 When `ContainerType == Set`, this returns the distinct prime
 factors as a set.
 
+# Examples
 ```julia
 julia> factor(Set, 100)
 Set([2,5])
@@ -347,6 +348,7 @@ factor(::Type{T}, n) where {T<:Any} = throw(MethodError(factor, (T, n)))
 """
     prodfactors(factors)
 
+# Examples
 Compute `n` (or the radical of `n` when `factors` is of type `Set` or
 `BitSet`) where `factors` is interpreted as the result of
 `factor(typeof(factors), n)`. Note that if `factors` is of type
@@ -376,6 +378,7 @@ Base.prod(factors::Factorization) = prodfactors(factors)
 Compute the radical of `n`, i.e. the largest square-free divisor of `n`.
 This is equal to the product of the distinct prime numbers dividing `n`.
 
+# Example
 ```jldoctest
 julia> radical(2*2*3)
 6
@@ -441,6 +444,7 @@ whether `M` is a valid Mersenne number; to be used with caution.
 Return `true` if the given Mersenne number is prime, and `false`
 otherwise.
 
+# Examples
 ```jldoctest
 julia> ismersenneprime(2^11 - 1)
 false
@@ -467,6 +471,7 @@ with `0 < k < Q`, `Q = 2^n - 1` and `n > 0`, also known as Riesel primes.
 Returns `true` if `R` is prime, and `false` otherwise or
 if the combination of k and n is not supported.
 
+# Examples
 ```jldoctest
 julia> isrieselprime(1, 2^11 - 1)  # == ismersenneprime(2^11 - 1)
 false
@@ -553,6 +558,7 @@ prevprime(n, -i). Note that for `n::BigInt`, the returned number is
 only a pseudo-prime (the function [`isprime`](@ref) is used
 internally). See also [`prevprime`](@ref).
 
+# Examples
 ```jldoctest
 julia> nextprime(4)
 5
@@ -604,6 +610,7 @@ The `i`-th largest prime not greater than `n` (in particular
 only a pseudo-prime (the function [`isprime`](@ref) is used internally). See
 also [`nextprime`](@ref).
 
+# Examples
 ```jldoctest
 julia> prevprime(4)
 3
@@ -635,13 +642,13 @@ end
 
 The `i`-th prime number.
 
+# Examples
 ```jldoctest
 julia> prime(1)
 2
 
 julia> prime(3)
 5
-
 ```
 """
 prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
@@ -672,10 +679,10 @@ are all distinct, and 0 if it has a multiple prime factor. Also, `moebius(0)=0`.
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
 
-# Example
+# Examples
 ```jldoctest
-julia> map(moebius, -2:10)
-[-1, 1, -1, 1, -1, -1, 0, -1, 1, -1, 0, 0, 1]
+julia> map(moebius, 0:12)
+[-1, 1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0]
 
 julia> moebius(factor(12))
 0
@@ -687,7 +694,7 @@ julia> moebius(factor(12))
 # moebiusmu(f::Dict{T,Int}) where T <: Integer = reduce(*, e == 1 ? -1 : 0 for (p, e) in f if p ≥ 0; init=1)
 # moebiusmu(n::Integer) = moebiusmu(factor(n))
 
-m(p, e) = e == 1 ? -1 : 0
+m(p, e) = p == 0 ? 0 : e == 1 ? -1 : 0
 moebius(n::Integer) = multfunct(m, n)
 moebius(f::Factorization{T}) where T <: Integer = multfunct(m, f)
 
@@ -703,12 +710,12 @@ of the non-zero integer `n`, counting multiplicity.
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
 
-# Example
+# Examples
 ```jldoctest
-julia> map(liouville, 1:10)
-[1, -1, -1, 1, -1, 1, -1, -1, 1, 1]
+julia> map(liouville, 1:12)
+[1, -1, -1, 1, -1, 1, -1, -1, 1, 1, -1, -1]
 
-julia> liouville(factor(-30))
+julia> liouville(factor(12))
 -1
 ```
 
@@ -728,9 +735,18 @@ Compute the number of positive divisors of the nonzero integer `n`.
 
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
+
+# Examples
+```jldoctest
+julia> map(divisorcount, 1:12)
+[1, 1, 1, 2, 1, 1, 1, 3, 2, 1, 1, 2]
+
+julia> divisorcount(factor(12))
+2
+```
 """
 
-divisorcount(n::Integer) = multfunct((p, e) -> e, assurenonzero(n))
+divisorcount(n::Integer) = multfunct((p, e) -> e+1, assurenonzero(n))
 divisorcount(f::Factorization{T}) where T <: Integer = multfunct((p, e) -> e, assurenonzero(f))
 
 
@@ -742,10 +758,19 @@ The sum of all positive divisors of the nonzero integer `n`.
 
 If the factorization of `n` is already known, it can passed into the function directly. This is
 useful, as finding the factorization can be expensive.
+
+# Examples
+```jldoctest
+julia> map(divisorsum, 1:12)
+[1, 3, 4, 7, 6, 12, 8, 15, 13, 18, 12, 28]
+
+julia> divisorsum(factor(12))
+28
+```
 """
-δ(p, e) = (p^(e+1)-1) ÷ (p-1)
+δ(p::Integer, e) = foldl((x, _) -> p*x+1, 1:e; init=1)
+δ(p::BigInt, e) = e > 4 ? foldl((x, _) -> p*x+1, 1:e; init=1) : (p^(e+1)-1) ÷ (p-1)
 divisorsum(n::Integer) = multfunct(δ, assurenonzero(n))
 divisorsum(f::Factorization{T}) where T <: Integer = multfunct(δ, assurenonzero(f))
-
-                                          
+                              
 end # module
