@@ -606,7 +606,7 @@ end
 
 
 """
-    prevprime(n::Integer, i::Integer=1; interval = 1)
+    prevprime(n::Integer, i::Integer=1; interval::Integer=1)
 
 The `i`-th largest prime not greater than `n` (in particular
 `prevprime(p) == p` if `p` is prime). If `i < 0`, this is equivalent to
