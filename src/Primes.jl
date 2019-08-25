@@ -544,7 +544,7 @@ end
 add_!(n::Integer, x::Int) = Base.checked_add(n, oftype(n, x))
 
 """
-    nextprime(n::Integer, i::Integer=1; interval = 1)
+    nextprime(n::Integer, i::Integer=1; interval::Integer=1)
 
 The `i`-th smallest prime not less than `n` (in particular,
 `nextprime(p) == p` if `p` is prime). If `i < 0`, this is equivalent to
@@ -553,7 +553,7 @@ only a pseudo-prime (the function [`isprime`](@ref) is used
 internally). See also [`prevprime`](@ref).
 
 If `interval` is provided, primes are sought in increments of `interval`.
-This can be useful to ensure the presince of certain divisors in `p-1`.
+This can be useful to ensure the presence of certain divisors in `p-1`.
 The selected interval should be even.
 
 ```jldoctest
@@ -576,7 +576,7 @@ julia> gcd(133121 - 1, 1024) # 1024 | p - 1
 1024
 ```
 """
-function nextprime(n::Integer, i::Integer=1; interval = 1)
+function nextprime(n::Integer, i::Integer=1; interval::Integer=1)
     i < 0 && return prevprime(n, -i; interval=interval)
     i == 0 && throw(DomainError(i))
     n < 2 && (n = oftype(n, 2))
@@ -625,7 +625,7 @@ julia> prevprime(5, 2)
 3
 ```
 """
-function prevprime(n::Integer, i::Integer=1; interval = 1)
+function prevprime(n::Integer, i::Integer=1; interval::Integer=1)
     i <= 0 && return nextprime(n, -i; interval=interval)
     i == 1 && n == 2 && return n
     # A bit ugly, but this lets us speed up prime walking 2x in the (common)
