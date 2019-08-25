@@ -544,13 +544,17 @@ end
 add_!(n::Integer, x::Int) = Base.checked_add(n, oftype(n, x))
 
 """
-    nextprime(n::Integer, i::Integer=1)
+    nextprime(n::Integer, i::Integer=1; interval::Integer=1)
 
 The `i`-th smallest prime not less than `n` (in particular,
 `nextprime(p) == p` if `p` is prime). If `i < 0`, this is equivalent to
 prevprime(n, -i). Note that for `n::BigInt`, the returned number is
 only a pseudo-prime (the function [`isprime`](@ref) is used
 internally). See also [`prevprime`](@ref).
+
+If `interval` is provided, primes are sought in increments of `interval`.
+This can be useful to ensure the presence of certain divisors in `p-1`.
+The selected interval should be even.
 
 ```jldoctest
 julia> nextprime(4)
@@ -564,12 +568,19 @@ julia> nextprime(4, 2)
 
 julia> nextprime(5, 2)
 7
+
+julia> nextprime(2^16-1024+1; interval=1024)
+133121
+
+julia> gcd(133121 - 1, 1024) # 1024 | p - 1
+1024
 ```
 """
-function nextprime(n::Integer, i::Integer=1)
-    i < 0 && return prevprime(n, -i)
+function nextprime(n::Integer, i::Integer=1; interval::Integer=1)
+    i < 0 && return prevprime(n, -i; interval=interval)
     i == 0 && throw(DomainError(i))
     n < 2 && (n = oftype(n, 2))
+    interval == 1 && (interval = 2)
     if n == 2
         if i <= 1
             return n
@@ -578,24 +589,24 @@ function nextprime(n::Integer, i::Integer=1)
             i -= 1
         end
     else
-        n += iseven(n)
+        n += iseven(n) ? oftype(n, interval - 1) : zero(n)
     end
     # n can now be safely mutated
     # @assert isodd(n) && n >= 3
     while true
         while !isprime(n)
-            n = add_!(n, 2)
+            n = add_!(n, interval)
         end
         i -= 1
         i <= 0 && break
-        n = add_!(n, 2)
+        n = add_!(n, interval)
     end
     n
 end
 
 
 """
-    prevprime(n::Integer, i::Integer=1)
+    prevprime(n::Integer, i::Integer=1; interval::Integer=1)
 
 The `i`-th largest prime not greater than `n` (in particular
 `prevprime(p) == p` if `p` is prime). If `i < 0`, this is equivalent to
@@ -614,17 +625,24 @@ julia> prevprime(5, 2)
 3
 ```
 """
-function prevprime(n::Integer, i::Integer=1)
-    i <= 0 && return nextprime(n, -i)
-    n += zero(n) # deep copy of n, which is mutated below
+function prevprime(n::Integer, i::Integer=1; interval::Integer=1)
+    i <= 0 && return nextprime(n, -i; interval=interval)
+    i == 1 && n == 2 && return n
+    # A bit ugly, but this lets us speed up prime walking 2x in the (common)
+    # case that n >> 2, while preventing prevprime(3) from skipping 2 and giving
+    # the wrong answer.
+    was_one = interval == 1
+    was_one && (interval = 2)
+    n -= iseven(n) ? oftype(n, interval-1) : zero(n) # deep copy of n, which is mutated below
     while true
         n < 2 && throw(ArgumentError("There is no prime less than or equal to $n"))
+        was_one && n <= 4 && (interval = 1)
         while !isprime(n)
-            n = add_!(n, -1)
+            n = add_!(n, -interval)
         end
         i -= 1
         i <= 0 && break
-        n = add_!(n, -1)
+        n = add_!(n, -interval)
     end
     n
 end

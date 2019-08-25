@@ -330,6 +330,8 @@ end
         n = rand(600:2^20)
         @test nextprime(n, i) == prevprime(n, -i)
     end
+
+    @test gcd(nextprime(2^17-1024+1; interval=1024) - 1, 1024) == 1024
 end
 
 @testset "prevprime(::$T)" for T in (Int64, Int32, BigInt)
@@ -361,6 +363,8 @@ end
         n = rand(600:2^20)
         @test prevprime(n, i) == nextprime(n, -i)
     end
+
+    @test gcd(prevprime(2^17-1024+1; interval=1024) - 1, 1024) == 1024
 end
 
 @testset "prime(::$T)" for T = (Int64, Int32, BigInt)
