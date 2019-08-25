@@ -77,7 +77,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Functions",
     "title": "Primes.nextprime",
     "category": "function",
-    "text": "nextprime(n::Integer, i::Integer=1)\n\nThe i-th smallest prime not less than n (in particular, nextprime(p) == p if p is prime). If i < 0, this is equivalent to prevprime(n, -i). Note that for n::BigInt, the returned number is only a pseudo-prime (the function isprime is used internally). See also prevprime.\n\njulia> nextprime(4)\n5\n\njulia> nextprime(5)\n5\n\njulia> nextprime(4, 2)\n7\n\njulia> nextprime(5, 2)\n7\n\n\n\n\n\n"
+    "text": "nextprime(n::Integer, i::Integer=1; interval::Integer=1)\n\nThe i-th smallest prime not less than n (in particular, nextprime(p) == p if p is prime). If i < 0, this is equivalent to prevprime(n, -i). Note that for n::BigInt, the returned number is only a pseudo-prime (the function isprime is used internally). See also prevprime.\n\nIf interval is provided, primes are sought in increments of interval. This can be useful to ensure the presence of certain divisors in p-1. The selected interval should be even.\n\njulia> nextprime(4)\n5\n\njulia> nextprime(5)\n5\n\njulia> nextprime(4, 2)\n7\n\njulia> nextprime(5, 2)\n7\n\njulia> nextprime(2^16-1024+1; interval=1024)\n133121\n\njulia> gcd(133121 - 1, 1024) # 1024 | p - 1\n1024\n\n\n\n\n\n"
 },
 
 {
@@ -85,7 +85,7 @@ var documenterSearchIndex = {"docs": [
     "page": "Functions",
     "title": "Primes.prevprime",
     "category": "function",
-    "text": "prevprime(n::Integer, i::Integer=1)\n\nThe i-th largest prime not greater than n (in particular prevprime(p) == p if p is prime). If i < 0, this is equivalent to nextprime(n, -i). Note that for n::BigInt, the returned number is only a pseudo-prime (the function isprime is used internally). See also nextprime.\n\njulia> prevprime(4)\n3\n\njulia> prevprime(5)\n5\n\njulia> prevprime(5, 2)\n3\n\n\n\n\n\n"
+    "text": "prevprime(n::Integer, i::Integer=1; interval::Integer=1)\n\nThe i-th largest prime not greater than n (in particular prevprime(p) == p if p is prime). If i < 0, this is equivalent to nextprime(n, -i). Note that for n::BigInt, the returned number is only a pseudo-prime (the function isprime is used internally). See also nextprime.\n\njulia> prevprime(4)\n3\n\njulia> prevprime(5)\n5\n\njulia> prevprime(5, 2)\n3\n\n\n\n\n\n"
 },
 
 {
