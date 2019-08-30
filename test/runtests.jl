@@ -290,21 +290,6 @@ end
 @testset "totient() correctness" begin
     @test totient(2^4 * 3^4 * 5^4) == 216000
     @test totient(big"2"^1000) == big"2"^999
-
-    some_coprime_numbers = BigInt[
-        450000000, 1099427429702334733, 200252151854851, 1416976291499, 7504637909,
-        1368701327204614490999, 662333585807659, 340557446329, 1009091
-    ]
-
-    for i in some_coprime_numbers
-        for j in some_coprime_numbers
-            if i ≠ j
-                @test totient(i*j) == totient(i) * totient(j)
-            end
-        end
-        # can use directly with Factorization
-        @test totient(i) == totient(factor(i))
-    end
 end
 
 # check copy property for big primes relied upon in nextprime/prevprime
@@ -389,4 +374,53 @@ for T in (Int, UInt, BigInt)
     end
     @test prodfactors(factor(Set, T(123456))) == 3858
     @test prod(factor(T(123456))) == 123456
+end
+
+# check multiplicativity for multiplicative functions, and whether f(factor(n)) = f(n)
+@testset "multiplicativity and consistency" begin
+    some_coprime_numbers = BigInt[
+        450000000, 1099427429702334733, 200252151854851, 1416976291499, 7504637909,
+        1368701327204614490999, 662333585807659, 340557446329, 1009091
+    ]
+
+    for i in some_coprime_numbers
+        for j in some_coprime_numbers
+            if i ≠ j
+                for fct in [totient, moebius, liouville, divisorcount, divisorsum]
+                    @test fct(i*j) == fct(i) * fct(j)
+                end
+            end
+        end
+        # can use directly with Factorization
+        for fct in [totient, moebius, liouville, divisorcount, divisorsum]
+            @test totient(i) == totient(factor(i))
+        end
+    end
+end
+
+@testset "Int moebius(), liouville(), divisorcount(), divisorsum()" begin
+    ns = [3^n+7^n+1 for n in 1:22]
+    moebius_res = [-1, -1, 1, 1, 0, 1, 1, -1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1, -1, 0, 1]
+    liouville_res = [-1, -1, 1, 1, -1, 1, 1, -1, -1, 1, 1, 1, -1, 1, 1, 1, -1, 1, 1, -1, 1, 1]
+    divisorcount_res = [2, 2, 4, 4, 6, 4, 4, 8, 8, 4, 4, 4, 2, 4, 4, 4, 2, 4, 4, 8, 48, 4]
+    divisorsum_res = [12, 60, 432, 2688, 18420, 121176, 828072, 6416256, 46199040, 283101000, 2157276984, 13850631048, 96890604732, 694000596696, 5425800981552, 35789356202208, 232630643127372, 1628414668930224, 11475399007686000, 86013321721581408, 750825696336150240, 3950128513778110104]
+    @test map(moebius, ns) == map(moebius, -ns) == moebius_res
+    @test map(liouville, ns) == map(liouville, -ns) == liouville_res
+    @test map(divisorcount, ns) == map(divisorcount, -ns) == divisorcount_res
+    @test map(divisorsum, ns) == map(divisorsum, -ns) == divisorsum_res
+end
+
+@testset "BigInt moebius(), liouville(), divisorcount(), divisorsum()" begin
+    ns = BigInt[
+        450000000, 1099427429702334733, 200252151854851, 1416976291499, 7504637909,
+        1368701327204614490999, 662333585807659, 340557446329, 1009091
+    ]
+    moebius_res = [0, 0, 0, 0, 0, 0, 0, 0, -1]
+    liouville_res = [-1, -1, -1, 1, 1, 1, 1, 1, -1]
+    divisorcount_res = [216, 308, 90, 40, 24, 120, 40, 27, 8]
+    divisorsum_res = [1618651515, 1528455927220372220, 234749079860820, 1557002958720, 8042136960, 1442725739861582095920, 691292021934800, 353095503663, 1039584]
+    @test map(moebius, ns) == map(moebius, -ns) == moebius_res
+    @test map(liouville, ns) == map(liouville, -ns) == liouville_res
+    @test map(divisorcount, ns) == map(divisorcount, -ns) == divisorcount_res
+    @test map(divisorsum, ns) == map(divisorsum, -ns) == divisorsum_res
 end

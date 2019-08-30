@@ -8,7 +8,8 @@ using Base: BitSigned
 using Base.Checked: checked_neg
 
 export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
-       nextprime, prevprime, prime, prodfactors, radical, totient
+       nextprime, prevprime, prime, prodfactors, radical, totient,
+       moebius, liouville, divisorcount, divisorsum
 
 include("factorization.jl")
 
@@ -331,6 +332,7 @@ true
 When `ContainerType == Set`, this returns the distinct prime
 factors as a set.
 
+# Examples
 ```julia
 julia> factor(Set, 100)
 Set([2,5])
@@ -346,6 +348,7 @@ factor(::Type{T}, n) where {T<:Any} = throw(MethodError(factor, (T, n)))
 """
     prodfactors(factors)
 
+# Examples
 Compute `n` (or the radical of `n` when `factors` is of type `Set` or
 `BitSet`) where `factors` is interpreted as the result of
 `factor(typeof(factors), n)`. Note that if `factors` is of type
@@ -375,6 +378,7 @@ Base.prod(factors::Factorization) = prodfactors(factors)
 Compute the radical of `n`, i.e. the largest square-free divisor of `n`.
 This is equal to the product of the distinct prime numbers dividing `n`.
 
+# Example
 ```jldoctest
 julia> radical(2*2*3)
 6
@@ -440,6 +444,7 @@ whether `M` is a valid Mersenne number; to be used with caution.
 Return `true` if the given Mersenne number is prime, and `false`
 otherwise.
 
+# Examples
 ```jldoctest
 julia> ismersenneprime(2^11 - 1)
 false
@@ -466,6 +471,7 @@ with `0 < k < Q`, `Q = 2^n - 1` and `n > 0`, also known as Riesel primes.
 Returns `true` if `R` is prime, and `false` otherwise or
 if the combination of k and n is not supported.
 
+# Examples
 ```jldoctest
 julia> isrieselprime(1, 2^11 - 1)  # == ismersenneprime(2^11 - 1)
 false
@@ -552,6 +558,8 @@ prevprime(n, -i). Note that for `n::BigInt`, the returned number is
 only a pseudo-prime (the function [`isprime`](@ref) is used
 internally). See also [`prevprime`](@ref).
 
+# Examples
+=======
 If `interval` is provided, primes are sought in increments of `interval`.
 This can be useful to ensure the presence of certain divisors in `p-1`.
 The selected interval should be even.
@@ -614,6 +622,7 @@ The `i`-th largest prime not greater than `n` (in particular
 only a pseudo-prime (the function [`isprime`](@ref) is used internally). See
 also [`nextprime`](@ref).
 
+# Examples
 ```jldoctest
 julia> prevprime(4)
 3
@@ -652,16 +661,135 @@ end
 
 The `i`-th prime number.
 
+# Examples
 ```jldoctest
 julia> prime(1)
 2
 
 julia> prime(3)
 5
-
 ```
 """
 prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
 prime(i::Integer) = prime(Int, i)
 
+
+
+assurenonzero(n::Integer) = begin if n == 0 throw(ArgumentError("Argument must be non-zero")) end; n end
+
+function assurenonzero(f::Factorization{T}) where T <: Integer
+    if !isempty(f) && first(first(f)) == 0
+        throw(ArgumentError("Argument must be non-zero"))
+    end
+    f
+end
+
+multfunct(a::Function, n::Integer) = multfunct(a, factor(n))
+multfunct(a::Function, f::Factorization{T}) where T <: Integer =
+    reduce(*, a(p, e) for (p, e) in f if p ≥ 0; init=1)
+
+"""
+    moebius(n::Integer) -> Int
+    moebius(f::Factorization) -> Int
+
+Compute the Moebius function of the integer `n`, which is ``(-1)^k`` if `n` has `k` prime factors which
+are all distinct, and 0 if it has a multiple prime factor. Also, `moebius(0)=0`.
+
+If the factorization of `n` is already known, it can passed into the function directly. This is
+useful, as finding the factorization can be expensive.
+
+# Examples
+```jldoctest
+julia> map(moebius, 0:12)
+[-1, 1, -1, -1, 0, -1, 1, -1, 0, 0, 1, -1, 0]
+
+julia> moebius(factor(12))
+0
+```
+
+# External links
+* [Möbius function](https://en.wikipedia.org/wiki/Möbius_function) on Wikipedia.
+"""
+# moebiusmu(f::Dict{T,Int}) where T <: Integer = reduce(*, e == 1 ? -1 : 0 for (p, e) in f if p ≥ 0; init=1)
+# moebiusmu(n::Integer) = moebiusmu(factor(n))
+
+m(p, e) = p == 0 ? 0 : e == 1 ? -1 : 0
+moebius(n::Integer) = multfunct(m, n)
+moebius(f::Factorization{T}) where T <: Integer = multfunct(m, f)
+
+
+
+"""
+    liouville(n::Integer) -> Int
+    liouville(f::Factorization) -> Int
+
+Compute Liouville's λ function, which gives ``(-1)^k`` where `k` is the number of prime factors
+of the non-zero integer `n`, counting multiplicity. 
+
+If the factorization of `n` is already known, it can passed into the function directly. This is
+useful, as finding the factorization can be expensive.
+
+# Examples
+```jldoctest
+julia> map(liouville, 1:12)
+[1, -1, -1, 1, -1, 1, -1, -1, 1, 1, -1, -1]
+
+julia> liouville(factor(12))
+-1
+```
+
+# External links
+* [Liouville function](https://en.wikipedia.org/wiki/Liouville_function) on Wikipedia.
+"""
+liouville(n::Integer) = liouville(factor(assurenonzero(n)))
+liouville(f::Factorization{T}) where T <: Integer =
+    (-1)^reduce(+, e for (p, e) in assurenonzero(f) if p ≥ 0; init=0)
+
+
+"""
+    divisorcount(n::Integer)
+    divisorcount(f::Factorization)
+
+Compute the number of positive divisors of the nonzero integer `n`.
+
+If the factorization of `n` is already known, it can passed into the function directly. This is
+useful, as finding the factorization can be expensive.
+
+# Examples
+```jldoctest
+julia> map(divisorcount, 1:12)
+[1, 1, 1, 2, 1, 1, 1, 3, 2, 1, 1, 2]
+
+julia> divisorcount(factor(12))
+2
+```
+"""
+
+divisorcount(n::Integer) = multfunct((p, e) -> e+1, assurenonzero(n))
+divisorcount(f::Factorization{T}) where T <: Integer = multfunct((p, e) -> e, assurenonzero(f))
+
+
+"""
+    divisorsum(n::Integer)
+    divisorsum(f::Factorization)
+    
+The sum of all positive divisors of the nonzero integer `n`.
+
+If the factorization of `n` is already known, it can passed into the function directly. This is
+useful, as finding the factorization can be expensive.
+
+# Examples
+```jldoctest
+julia> map(divisorsum, 1:12)
+[1, 3, 4, 7, 6, 12, 8, 15, 13, 18, 12, 28]
+
+julia> divisorsum(factor(12))
+28
+```
+"""
+δ(p::Integer, e) = foldl((x, _) -> p*x+1, 1:e; init=1)
+δ(p::BigInt, e) = e > 4 ? foldl((x, _) -> p*x+1, 1:e; init=1) : (p^(e+1)-1) ÷ (p-1)
+divisorsum(n::Integer) = multfunct(δ, assurenonzero(n))
+divisorsum(f::Factorization{T}) where T <: Integer = multfunct(δ, assurenonzero(f))
+                              
 end # module
