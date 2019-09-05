@@ -675,11 +675,9 @@ struct NextPrimes{T<:Integer}
     start::T
 end
 
-function iterate(np::NextPrimes,
-                 state = p = np.start < 2 ? np.start : add(np.start, -1)
-                 )
-    p = nextprime(add(state, 1))
-    (p, p)
+function iterate(np::NextPrimes, state=np.start)
+    p = nextprime(state)
+    (p, add(p, 1))
 end
 
 IteratorSize(::Type{<:NextPrimes}) = Base.IsInfinite()
@@ -725,17 +723,13 @@ struct PrevPrimes{T<:Integer}
     start::T
 end
 
-function iterate(np::PrevPrimes,
-                 state = np.start+one(np.start) # allow wrap-around
-                 )
-    c = state-one(state)
-    if isone(c)
+iterate(np::PrevPrimes, state=np.start) =
+    if isone(state)
         nothing
     else
-        p = prevprime(c)
-        (p, p)
+        p = prevprime(state)
+        (p, p-one(p))
     end
-end
 
 IteratorSize(::Type{<:PrevPrimes}) = Base.SizeUnknown()
 Iteratoreltype(::Type{<:PrevPrimes}) = Base.HasEltype()
