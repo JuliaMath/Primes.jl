@@ -732,7 +732,7 @@ iterate(np::PrevPrimes, state=np.start) =
     end
 
 IteratorSize(::Type{<:PrevPrimes}) = Base.SizeUnknown()
-Iteratoreltype(::Type{<:PrevPrimes}) = Base.HasEltype()
+IteratorEltype(::Type{<:PrevPrimes}) = Base.HasEltype()
 
 eltype(::Type{PrevPrimes{T}}) where {T} = T
 

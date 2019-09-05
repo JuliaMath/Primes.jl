@@ -405,6 +405,8 @@ end
     @test nextprimes(1, 1)[1] == nextprimes(2, 1)[1] == 2
     @test nextprimes(3, 1)[1] == 3
     @test nextprimes(4, 1)[1] == nextprimes(5, 1)[1] == 5
+    @test eltype(nextprimes(10)) == Int
+    @test eltype(nextprimes(big(10))) == BigInt
 end
 
 
@@ -421,6 +423,8 @@ end
         @test length(p8) == 31
         @test p8[end] == 2
         @test p8[1] == 127
+        @test eltype(p8) == Int8
     end
-
+    @test eltype(prevprimes(10)) == Int
+    @test eltype(prevprimes(big(10))) == BigInt
 end
