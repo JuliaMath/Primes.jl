@@ -417,7 +417,6 @@ end
     @test prevprimes(6, 1)[1] == prevprimes(5, 1)[1] == 5
     @test prevprimes(4, 1)[1] == prevprimes(3, 1)[1] == 3
     @test prevprimes(2, 1)[1] == 2
-    @test_throws ArgumentError prevprimes(2, 2)
     let p8 = collect(prevprimes(typemax(Int8)))
         @test length(p8) == 31
         @test p8[end] == 2
