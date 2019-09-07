@@ -331,7 +331,17 @@ end
         @test nextprime(n, i) == prevprime(n, -i)
     end
 
+    # interval
+    @test nextprime(0, interval=2) == 2
+    @test nextprime(0, interval=3) == 3
+    @test_throws DomainError nextprime(0, 2, interval=2)
+    @test_throws DomainError nextprime(0, interval=4)
+    @test nextprime(-20, interval=2) == 2
+    @test nextprime(4, interval=5) == 19
+    @test nextprime(4, 2, interval=5) == 29
+    @test nextprime(4, 3, interval=5) == 59
     @test gcd(nextprime(2^17-1024+1; interval=1024) - 1, 1024) == 1024
+    @test gcd(nextprime(1024*rand(1:2^6)+1; interval=1024) - 1, 1024) == 1024
 end
 
 @testset "prevprime(::$T)" for T in (Int64, Int32, BigInt)
@@ -364,7 +374,12 @@ end
         @test prevprime(n, i) == nextprime(n, -i)
     end
 
+    # interval
     @test gcd(prevprime(2^17-1024+1; interval=1024) - 1, 1024) == 1024
+    @test gcd(prevprime(1024*rand(12:2^6)+1; interval=1024) - 1, 1024) == 1024
+    @test prevprime(10, interval=4) == 2
+    @test [prevprime(11, i, interval=2) for i=1:4] == [11, 7, 5, 3]
+    @test [prevprime(11, i, interval=3) for i=1:3] == [11, 5, 2]
 end
 
 @testset "prime(::$T)" for T = (Int64, Int32, BigInt)

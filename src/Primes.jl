@@ -554,7 +554,7 @@ internally). See also [`prevprime`](@ref).
 
 If `interval` is provided, primes are sought in increments of `interval`.
 This can be useful to ensure the presence of certain divisors in `p-1`.
-The selected interval should be even.
+The range of possible values for `interval` is currently `1:typemax(Int)`.
 
 ```jldoctest
 julia> nextprime(4)
@@ -569,30 +569,47 @@ julia> nextprime(4, 2)
 julia> nextprime(5, 2)
 7
 
-julia> nextprime(2^16-1024+1; interval=1024)
-133121
+julia> nextprime(2^10+1; interval=1024)
+12289
 
-julia> gcd(133121 - 1, 1024) # 1024 | p - 1
+julia> gcd(12289 - 1, 1024) # 1024 | p - 1
 1024
 ```
 """
 function nextprime(n::Integer, i::Integer=1; interval::Integer=1)
-    i < 0 && return prevprime(n, -i; interval=interval)
     i == 0 && throw(DomainError(i))
-    n < 2 && (n = oftype(n, 2))
-    interval == 1 && (interval = 2)
+    i < 0 && return prevprime(n, -i; interval=interval)
+    interval < 1 && throw(DomainError(interval, "interval must be >= 1"))
+    # TODO: lift the following condition
+    interval > typemax(Int) && throw(DomainError(interval, "interval must be <= $(typemax(Int))"))
+    interval = oftype(n, interval)
+    if n < 2
+        n = interval == 1 ?
+            oftype(n, 2) :
+            # smallest value >= 2 whose difference from n is a multiple of interval
+            oftype(n, n + interval * (1 + (n-1)÷(-interval)))
+    end
     if n == 2
         if i <= 1
             return n
         else
-            n += one(n)
+            n += interval
             i -= 1
         end
     else
-        n += iseven(n) ? oftype(n, interval - 1) : zero(n)
+        n += iseven(n) ? interval : zero(n)
     end
     # n can now be safely mutated
-    # @assert isodd(n) && n >= 3
+    # @assert n >= 3
+    if iseven(n)
+        @assert iseven(interval)
+        throw(DomainError((n, interval),
+            "`n` and `interval` should not be both even (there is then no correct answer)."))
+    end
+    # @assert isodd(n)
+    interval = Int(interval)
+    isodd(interval) && (interval = Base.checked_mul(interval, 2))
+
     while true
         while !isprime(n)
             n = add_!(n, interval)
@@ -614,6 +631,10 @@ The `i`-th largest prime not greater than `n` (in particular
 only a pseudo-prime (the function [`isprime`](@ref) is used internally). See
 also [`nextprime`](@ref).
 
+If `interval` is provided, primes are sought in increments of `interval`.
+This can be useful to ensure the presence of certain divisors in `p-1`.
+The range of possible values for `interval` is currently `1:typemax(Int)`.
+
 ```jldoctest
 julia> prevprime(4)
 3
@@ -627,22 +648,28 @@ julia> prevprime(5, 2)
 """
 function prevprime(n::Integer, i::Integer=1; interval::Integer=1)
     i <= 0 && return nextprime(n, -i; interval=interval)
-    i == 1 && n == 2 && return n
-    # A bit ugly, but this lets us speed up prime walking 2x in the (common)
-    # case that n >> 2, while preventing prevprime(3) from skipping 2 and giving
-    # the wrong answer.
-    was_one = interval == 1
-    was_one && (interval = 2)
-    n -= iseven(n) ? oftype(n, interval-1) : zero(n) # deep copy of n, which is mutated below
+    interval < 1 && throw(DomainError(interval, "interval must be >= 1"))
+    interval > typemax(Int) && throw(DomainError(interval, "interval must be <= $(typemax(Int))"))
+    interval = Int(interval)
+
+    n += zero(n) # deep copy of n, which is mutated below
+
+    # A bit ugly, but this lets us skip half of the isprime tests when isodd(interval)
+    @inline function decrement(n)
+        n = add_!(n, -interval)
+        iseven(n) && n != 2 ? # n obviously not prime
+            add_!(n, -interval) :
+            n
+    end
+
     while true
-        n < 2 && throw(ArgumentError("There is no prime less than or equal to $n"))
-        was_one && n <= 4 && (interval = 1)
         while !isprime(n)
-            n = add_!(n, -interval)
+            n < 2 && throw(ArgumentError("There is no prime less than or equal to $n"))
+            n = decrement(n)
         end
         i -= 1
         i <= 0 && break
-        n = add_!(n, -interval)
+        n = decrement(n)
     end
     n
 end
