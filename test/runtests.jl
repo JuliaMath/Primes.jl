@@ -407,6 +407,9 @@ end
     @test nextprimes(4, 1)[1] == nextprimes(5, 1)[1] == 5
     @test eltype(nextprimes(10)) == Int
     @test eltype(nextprimes(big(10))) == BigInt
+    @test Base.IteratorEltype(nextprimes(10)) == Base.HasEltype()
+    @test Base.IteratorSize(nextprimes(10)) == Base.IsInfinite()
+
 end
 
 
@@ -419,6 +422,7 @@ end
     @test prevprimes(6, 1)[1] == prevprimes(5, 1)[1] == 5
     @test prevprimes(4, 1)[1] == prevprimes(3, 1)[1] == 3
     @test prevprimes(2, 1)[1] == 2
+    @test isempty(prevprimes(1, 1))
     let p8 = collect(prevprimes(typemax(Int8)))
         @test length(p8) == 31
         @test p8[end] == 2
@@ -427,4 +431,6 @@ end
     end
     @test eltype(prevprimes(10)) == Int
     @test eltype(prevprimes(big(10))) == BigInt
+    @test Base.IteratorEltype(prevprimes(10)) == Base.HasEltype()
+    @test Base.IteratorSize(prevprimes(10)) == Base.SizeUnknown()
 end

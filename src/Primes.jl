@@ -531,7 +531,7 @@ end
 
 # add: checked add (when makes sense), result of same type as first argument
 
-add(n::BigInt, x::Int) = n+x
+add(n::BigInt, x::Int) = n + x
 add(n::Integer, x::Int) = Base.checked_add(n, oftype(n, x))
 
 # add_! : "may" mutate the Integer argument (only for BigInt currently)
@@ -723,13 +723,14 @@ struct PrevPrimes{T<:Integer}
     start::T
 end
 
-iterate(np::PrevPrimes, state=np.start) =
+function iterate(np::PrevPrimes, state=np.start)
     if isone(state)
         nothing
     else
         p = prevprime(state)
         (p, p-one(p))
     end
+end
 
 IteratorSize(::Type{<:PrevPrimes}) = Base.SizeUnknown()
 IteratorEltype(::Type{<:PrevPrimes}) = Base.HasEltype()
