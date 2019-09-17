@@ -27,12 +27,12 @@ end
 
 Base.getindex(f::Factorization, p::Integer) = get(f, p, 0)
 
-function Base.setindex!(f::Factorization{T}, e::Int, p::Integer) where T
+function Base.setindex!(f::Factorization{T}, e::Int, p::T) where T<:Integer
     found = searchsorted(f.pe, p, by=first)
     if isempty(found)
-        insert!(f.pe, first(found), T(p)=>e)
+        insert!(f.pe, first(found), p=>e)
     else
-        f.pe[first(found)] = T(p)=>e
+        f.pe[first(found)] = p=>e
     end
     f
 end
