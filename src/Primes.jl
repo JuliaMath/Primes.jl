@@ -533,6 +533,8 @@ end
 
 add(n::BigInt, x::Int) = n + x
 add(n::Integer, x::Int) = Base.checked_add(n, oftype(n, x))
+sub(n::BigInt, x::Int) = n - x
+sub(n::Integer, x::Int) = Base.checked_sub(n, oftype(n, x))
 
 # add_! : "may" mutate the Integer argument (only for BigInt currently)
 
@@ -548,6 +550,8 @@ end
 
 # checked addition, without mutation
 add_!(n::Integer, x::Int) = add(n, x)
+sub_!(n::BigInt, x::Int) = add_!(n, -x)
+sub_!(n::Integer, x::Int) = sub(n, x)
 
 """
     nextprime(n::Integer, i::Integer=1; interval::Integer=1)
@@ -662,9 +666,9 @@ function prevprime(n::Integer, i::Integer=1; interval::Integer=1)
 
     # A bit ugly, but this lets us skip half of the isprime tests when isodd(interval)
     @inline function decrement(n)
-        n = add_!(n, -interval)
+        n = sub_!(n, interval)
         iseven(n) && n != 2 ? # n obviously not prime
-            add_!(n, -interval) :
+            sub_!(n, interval) :
             n
     end
 

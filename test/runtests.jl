@@ -360,6 +360,8 @@ end
     @test prevprime(3) == 3
     @test prevprime(3, 2) == 2
     @test prevprime(2) == 2
+    @test prevprime(typemax(UInt8)) == prevprime(big(typemax(UInt8)))
+    @test typeof(prevprime(typemax(UInt8))) === UInt8
     @test_throws ArgumentError prevprime(2, 2)
 
     @test_throws DomainError prevprime(rand(-100:100), 0)
