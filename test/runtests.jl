@@ -451,3 +451,7 @@ end
     @test Base.IteratorEltype(prevprimes(10)) == Base.HasEltype()
     @test Base.IteratorSize(prevprimes(10)) == Base.SizeUnknown()
 end
+
+@testset "primes with huge arguments" begin
+    @test primes(2^63-200, 2^63-1) == [9223372036854775643, 9223372036854775783]
+end

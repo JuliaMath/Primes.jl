@@ -63,9 +63,11 @@ function _primesmask(lo::Int, hi::Int)
         if small_sieve[i]
             p = wheel_prime(i)
             j = wheel_index(2 * div(lo - p - 1, 2p) + 1)
-            q = p * wheel_prime(j + 1)
+            r = widemul(p, wheel_prime(j + 1))
+            r > m && continue
             j = j & 7 + 1
-            while q ≤ m
+            q = Int(r)
+            while 0 ≤ q ≤ m
                 sieve[wheel_index(q) - wlo] = false
                 q += wheel[j] * p
                 j = j & 7 + 1
