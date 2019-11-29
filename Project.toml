@@ -1,5 +1,6 @@
 name = "Primes"
 uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
+version = "0.5.0"
 
 [extras]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
@@ -7,3 +8,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["DataStructures", "Test"]
+
+[compat]
+DataStructures = "0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17"
+julia = "1.0.0"
