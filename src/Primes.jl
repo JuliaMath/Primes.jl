@@ -235,7 +235,7 @@ isprime(n::Int128) = n < 2 ? false :
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
-function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
+function factor!(h::AbstractDict{K,Int}, n::T) where {T<:Integer,K<:Integer}
     # check for special cases
     if n < 0
         h[-1] = 1
@@ -243,7 +243,7 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
             h[2] = 8 * sizeof(T) - 1
             return h
         else
-            return factor!(checked_neg(n), h)
+            return factor!(h, checked_neg(n))
         end
     elseif n == 1
         return h
@@ -265,7 +265,7 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
             isprime(n) && (h[n] = 1; return h)
         end
     end
-    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
+    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(h, n) : pollardfactors!(h, widen(n))
 end
 
 
@@ -298,7 +298,7 @@ julia> collect(factor(0))
  0=>1
 ```
 """
-factor(n::T) where {T<:Integer} = factor!(n, Factorization{T}())
+factor(n::T) where {T<:Integer} = factor!(Factorization{T}(), n)
 
 
 """
@@ -337,7 +337,7 @@ julia> factor(Set, 100)
 Set([2,5])
 ```
 """
-factor(::Type{D}, n::T) where {T<:Integer, D<:AbstractDict} = factor!(n, D(Dict{T,Int}()))
+factor(::Type{D}, n::T) where {T<:Integer, D<:AbstractDict} = factor!(D(Dict{T,Int}()), n)
 factor(::Type{A}, n::T) where {T<:Integer, A<:AbstractArray} = A(factor(Vector{T}, n))
 factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
     mapreduce(collect, vcat, [repeated(k, v) for (k, v) in factor(n)], init=Vector{T}())
@@ -383,7 +383,7 @@ julia> radical(2*2*3)
 """
 radical(n) = prod(factor(Set, n))
 
-function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
+function pollardfactors!(h::AbstractDict{K,Int}, n::T) where {T<:Integer,K<:Integer}
     while true
         c::T = rand(1:(n - 1))
         G::T = 1
@@ -423,9 +423,9 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
             G = gcd(x > ys ? x - ys : ys - x, n)
         end
         if G != n
-            isprime(G) ? h[G] = get(h, G, 0) + 1 : pollardfactors!(G, h)
+            isprime(G) ? h[G] = get(h, G, 0) + 1 : pollardfactors!(h, G)
             G2 = div(n,G)
-            isprime(G2) ? h[G2] = get(h, G2, 0) + 1 : pollardfactors!(G2, h)
+            isprime(G2) ? h[G2] = get(h, G2, 0) + 1 : pollardfactors!(h, G2)
             return h
         end
     end
