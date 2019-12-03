@@ -239,6 +239,12 @@ end
 # factor returns a sorted dict
 @test all([issorted(collect(factor(rand(Int)))) for x in 1:100])
 
+@testset "factor!" begin
+    @test factor!(Int[], -50) == [-1, 2, 5, 5]
+    @test factor!(Set{Int}(), -50) == Set([-1, 2, 5])
+    @test factor!(Dict{Int,Int}(), -50) == Dict(-1 => 1, 2 => 1, 5 => 2)
+end
+
 # Lucas-Lehmer
 @test !ismersenneprime(2047)
 @test ismersenneprime(8191)
