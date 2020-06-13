@@ -64,9 +64,10 @@ function _primesmask(lo::Int, hi::Int)
             p = wheel_prime(i)
             j = wheel_index(2 * div(lo - p - 1, 2p) + 1)
             r = widemul(p, wheel_prime(j + 1))
-            r > m && continue
+            r > m && continue # use widemul to avoid r <= m caused by overflow
             j = j & 7 + 1
             q = Int(r)
+            # q < 0 indicates overflow when incrementing q inside loop
             while 0 ≤ q ≤ m
                 sieve[wheel_index(q) - wlo] = false
                 q += wheel[j] * p
