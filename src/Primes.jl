@@ -127,7 +127,7 @@ function primes(lo::Int, hi::Int)
     end
     return list
 end
-primes(n::Int) = primes(1, n)
+primes(n::Int) = primes(0, n)
 
 const PRIMES = primes(2^16)
 
