@@ -8,7 +8,7 @@ import Base: iterate, eltype, IteratorSize, IteratorEltype
 using Base: BitSigned
 using Base.Checked: checked_neg
 
-export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
+export isprime, primes, primesmask, factor, factor!, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
 include("factorization.jl")
@@ -232,43 +232,88 @@ isprime(n::Int128) = n < 2 ? false :
     n ≤ typemax(Int64)  ? isprime(Int64(n))  : isprime(BigInt(n))
 
 
+push_factor!(h::AbstractVector, f, mult) = append!(h, Iterators.repeated(f, mult))
+push_factor!(h::AbstractVector, f) = push!(h, f)
+push_factor!(h::AbstractDict, f, mult=1) = h[f] = get(h, f, 0) + mult
+push_factor!(h::AbstractSet, f, mult=1) = push!(h, f)
+
+maybe_sort!(h) = h
+maybe_sort!(h::AbstractVector) = sort!(h)
+
+FactorCont{K} = Union{AbstractVector{K}, AbstractDict{K,Int}, AbstractSet{K}} where K
+
 # Trial division of small (< 2^16) precomputed primes +
 # Pollard rho's algorithm with Richard P. Brent optimizations
 #     https://en.wikipedia.org/wiki/Trial_division
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
-function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
+"""
+    factor!(container, n::Integer) -> container
+
+Return the prime factorization of `n` stored in `container`.
+When `container::AbstractDict`, the keys represent the factors and the values
+represent the multiplicities.
+When `container::AbstractSet`, the elements represent the distinct factors
+of `n` (the multiplicities are not stored).
+When `container::AbstractVector`, the factors are stored with their multiplicities,
+in sorted order.
+
+# Examples
+```julia
+julia> factor!(Dict{Int,Int}(), 63)
+Dict{Int64,Int64} with 2 entries:
+  7 => 1
+  3 => 2
+
+julia> factor!(Set{Int}(), 63)
+Set{Int64} with 2 elements:
+  7
+  3
+
+julia> factor!(Int[], 63)
+3-element Array{Int64,1}:
+ 3
+ 3
+ 7
+
+julia> prod(ans)
+63
+```
+"""
+function factor!(h::FactorCont{K}, n::T) where {T<:Integer,K<:Integer}
     # check for special cases
     if n < 0
-        h[-1] = 1
+        push_factor!(h, -1)
         if isa(n, BitSigned) && n == typemin(T)
-            h[2] = 8 * sizeof(T) - 1
-            return h
+            push_factor!(h, 2, 8 * sizeof(T) - 1)
+            return maybe_sort!(h)
         else
-            return factor!(checked_neg(n), h)
+            return factor!(h, checked_neg(n))
         end
     elseif n == 1
-        return h
+        return maybe_sort!(h)
     elseif n == 0 || isprime(n)
-        h[n] = 1
-        return h
+        push_factor!(h, n)
+        return maybe_sort!(h)
     end
 
     local p::T
     for p in PRIMES
         if n % p == 0
-            h[p] = get(h, p, 0) + 1
+            push_factor!(h, p)
             n = div(n, p)
             while n % p == 0
-                h[p] = get(h, p, 0) + 1
+                push_factor!(h, p)
                 n = div(n, p)
             end
-            n == 1 && return h
-            isprime(n) && (h[n] = 1; return h)
+            n == 1 && return maybe_sort!(h)
+            isprime(n) && (push_factor!(h, n); return h)
         end
     end
-    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
+    maybe_sort!(T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ?
+                    pollardfactors!(h, n) :
+                    pollardfactors!(h, widen(n)))
 end
 
 
@@ -301,7 +346,7 @@ julia> collect(factor(0))
  0=>1
 ```
 """
-factor(n::T) where {T<:Integer} = factor!(n, Factorization{T}())
+factor(n::T) where {T<:Integer} = factor!(Factorization{T}(), n)
 
 
 """
@@ -340,7 +385,7 @@ julia> factor(Set, 100)
 Set([2,5])
 ```
 """
-factor(::Type{D}, n::T) where {T<:Integer, D<:AbstractDict} = factor!(n, D(Dict{T,Int}()))
+factor(::Type{D}, n::T) where {T<:Integer, D<:AbstractDict} = factor!(D(Dict{T,Int}()), n)
 factor(::Type{A}, n::T) where {T<:Integer, A<:AbstractArray} = A(factor(Vector{T}, n))
 factor(::Type{Vector{T}}, n::T) where {T<:Integer} =
     mapreduce(collect, vcat, [repeated(k, v) for (k, v) in factor(n)], init=Vector{T}())
@@ -386,7 +431,7 @@ julia> radical(2*2*3)
 """
 radical(n) = prod(factor(Set, n))
 
-function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
+function pollardfactors!(h::FactorCont{K}, n::T) where {T<:Integer,K<:Integer}
     while true
         c::T = rand(1:(n - 1))
         G::T = 1
@@ -426,9 +471,9 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
             G = gcd(x > ys ? x - ys : ys - x, n)
         end
         if G != n
-            isprime(G) ? h[G] = get(h, G, 0) + 1 : pollardfactors!(G, h)
+            isprime(G) ? push_factor!(h, G) : pollardfactors!(h, G)
             G2 = div(n,G)
-            isprime(G2) ? h[G2] = get(h, G2, 0) + 1 : pollardfactors!(G2, h)
+            isprime(G2) ? push_factor!(h, G2) : pollardfactors!(h, G2)
             return h
         end
     end

@@ -8,6 +8,7 @@ DocTestSetup = :(using Primes)
 
 ```@docs
 Primes.factor
+Primes.factor!
 Primes.prodfactors
 ```
 
