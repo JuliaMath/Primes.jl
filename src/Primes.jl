@@ -265,9 +265,14 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
                 n = div(n, p)
             end
             n == 1 && return h
-            isprime(n) && (h[n] = 1; return h)
+            if T==BigInt 
+                isprime(n, reps=1) && (h[n] = 1; return h)
+            else
+                isprime(n) && (h[n] = 1; return h)
+            end
         end
     end
+    isprime(n) && h[n]=1; return h
     T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
 end
 
