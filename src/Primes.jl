@@ -266,7 +266,7 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
             end
             n == 1 && return h
             if T==BigInt 
-                isprime(n, reps=1) && (h[n] = 1; return h)
+                isprime(n, 1) && (h[n] = 1; return h)
             else
                 isprime(n) && (h[n] = 1; return h)
             end
