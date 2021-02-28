@@ -557,7 +557,7 @@ function ll_primecheck(X::Integer, s::Integer = 4)
     S, N = BigInt(s), BigInt(ndigits(X, base=2))
     X < 7 && throw(ArgumentError("The condition X ≥ 7 must be met."))
     for i in 1:(N - 2)
-        S = (S^2 - 2) % X
+        S = mod_mersenne((S^2 - 2), N, X)
     end
     return S == 0
 end
