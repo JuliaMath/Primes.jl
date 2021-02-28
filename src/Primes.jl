@@ -460,7 +460,7 @@ function ismersenneprime(M::Integer; check::Bool = true)
     end
     M < 7 && return M == 3
     has_small_factor_mersenne(M) && return false
-    p_minus1(M) && return false
+    p_minus1_mersenne(M) && return false
     return ll_primecheck(M)
 end
 
