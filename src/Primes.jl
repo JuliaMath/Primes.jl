@@ -459,7 +459,68 @@ function ismersenneprime(M::Integer; check::Bool = true)
             throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
     end
     M < 7 && return M == 3
+    mersennehassmallfactor(M) && return false
+    p_minus1(M) && return false
     return ll_primecheck(M)
+end
+
+# Returns whether M=2^d-1 has a small factor
+# For each factor, checks if 2^d = 1 \pmod factor.
+# Uses the fact that all factors must be of the form
+# 2kd+1 for integer k
+function has_small_factor_mersenne(M::Integer)
+    d = ndigits(M, base=2)
+    #limit = round(BigInt, 2^(22.85*d^(1/16))/(2*d))
+    limit = round(BigInt,  7.3e-6 * d^2.32)
+    step = 2 * d
+    wheel = Iterators.cycle(d % 4 == 1 ?
+                            (false,false,true,true) :
+                            (true,false,false,true))
+    for (factor, w) in zip(1+step : step : step*limit, wheel)
+        !w && continue
+        factor & 7 in (3,5) && continue
+        !isprime(factor, 4) && continue
+        if powermod(2, d, factor) == 1
+            return true
+        end
+    end
+    return false
+end
+
+# Calculates n % 2^d-1 where M=2**d-1
+function mod_mersenne(n, d, M)
+    while n > M
+        n = (n & M) + (n >> d)
+    end
+    return n != M ? n : 0
+end
+
+# Calculates base^exp % 2^d-1 where M=2**d-1
+function power_mod_mersenne(base, exp, d, M)
+    ans = 1
+    while exp > 0
+        if exp & 1 == 1
+            ans = mod_mersenne(ans * base, d, M)
+        end
+        exp >>= 1
+        base = mod_mersenne(base * base, d, M)
+    end
+    return ans
+end
+
+# Returns if M=2^prime-1 have a factor 2*k*prime+1
+# such that the largest prime factor of k is less than limit"""
+function p_minus1_mersenne(M)
+    d = ndigits(M, base=2)
+    B1 = d
+    log_B1 = log(B1)
+    P = prod(p^round(BigInt, log_B1/log(p)) for p in primes(B1))
+    P = power_mod_mersenne(3, 2*P*d, d, M)
+    g = gcd(M, P-1)
+    1 < g < M && return true
+    g == M && return false
+    return false
+    #return p_minus1_stage_2(prime, mersenne, P, p, 10*B1, primes)
 end
 
 """
