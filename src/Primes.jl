@@ -459,7 +459,7 @@ function ismersenneprime(M::Integer; check::Bool = true)
             throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
     end
     M < 7 && return M == 3
-    mersennehassmallfactor(M) && return false
+    has_small_factor_mersenne(M) && return false
     p_minus1(M) && return false
     return ll_primecheck(M)
 end
