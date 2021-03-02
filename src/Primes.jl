@@ -464,22 +464,42 @@ function ismersenneprime(M::Integer; check::Bool = true)
     return ll_primecheck(M)
 end
 
+# Prime sieve for numbers of the form ax+b
+# Filters out all composites with divisors less than 2^16
+function linear_sieve(a,b,max)
+    arr = falses(div((max-b),a))
+    sqrtmax = isqrt(max)
+    for p in PRIMES
+        p > sqrtmax && break
+        g,x,_ = gcdx(a, p)
+        if g!=1
+            if mod(b,p) == 0
+                return typeof(max)[]
+            end
+            continue
+        end
+        # x*a = 1 mod p
+        k = mod(-b*x, p)
+        arr[k+1:p:end] .= true
+        # don't set p as composite. (only applies if arr contains elements as small as p)
+        if a*k+b == p
+            arr[k+1]=false
+        end
+    end
+    if b == 1
+        arr[1] = true
+    end
+    return (a*(i-1)+b for (i,x) in enumerate(arr) if !x)
+end
+
 # Returns whether M=2^d-1 has a small factor
 # For each factor, checks if 2^d = 1 \pmod factor.
 # Uses the fact that all factors must be of the form
 # 2kd+1 for integer k
 function has_small_factor_mersenne(M::Integer)
     d = ndigits(M, base=2)
-    #limit = round(BigInt, 2^(22.85*d^(1/16))/(2*d))
-    limit = round(BigInt,  7.3e-6 * d^2.32)
-    step = 2 * d
-    wheel = Iterators.cycle(d % 4 == 1 ?
-                            (false,false,true,true) :
-                            (true,false,false,true))
-    for (factor, w) in zip(1+step : step : step*limit, wheel)
-        !w && continue
+    for factor in linear_sieve(2 * d, 1, 2^40)
         factor & 7 in (3,5) && continue
-        !isprime(factor, 4) && continue
         if powermod(2, d, factor) == 1
             return true
         end
@@ -579,7 +599,7 @@ function totient(f::Factorization{T}) where T <: Integer
     end
     result
 end
-
+ 0
 """
     totient(n::Integer) -> Integer
 
