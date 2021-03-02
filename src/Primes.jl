@@ -460,7 +460,6 @@ function ismersenneprime(M::Integer; check::Bool = true)
     end
     M < 7 && return M == 3
     has_small_factor_mersenne(M) && return false
-    p_minus1_mersenne(M) && return false
     return ll_primecheck(M)
 end
 
@@ -513,34 +512,6 @@ function mod_mersenne(n, d, M)
         n = (n & M) + (n >> d)
     end
     return n != M ? n : 0
-end
-
-# Calculates base^exp % 2^d-1 where M=2**d-1
-function power_mod_mersenne(base, exp, d, M)
-    ans = 1
-    while exp > 0
-        if exp & 1 == 1
-            ans = mod_mersenne(ans * base, d, M)
-        end
-        exp >>= 1
-        base = mod_mersenne(base * base, d, M)
-    end
-    return ans
-end
-
-# Returns if M=2^prime-1 have a factor 2*k*prime+1
-# such that the largest prime factor of k is less than limit"""
-function p_minus1_mersenne(M)
-    d = ndigits(M, base=2)
-    B1 = d
-    log_B1 = log(B1)
-    P = prod(p^round(BigInt, log_B1/log(p)) for p in primes(B1))
-    P = power_mod_mersenne(3, 2*P*d, d, M)
-    g = gcd(M, P-1)
-    1 < g < M && return true
-    g == M && return false
-    return false
-    #return p_minus1_stage_2(prime, mersenne, P, p, 10*B1, primes)
 end
 
 """
