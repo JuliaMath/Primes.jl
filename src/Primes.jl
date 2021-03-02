@@ -453,13 +453,14 @@ true
 ```
 """
 function ismersenneprime(M::Integer; check::Bool = true)
+    d = ndigits(M, base=2)
     if check
-        d = ndigits(M, base=2)
         M >= 0 && isprime(d) && (M >> d == 0) ||
             throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
     end
     M < 7 && return M == 3
-    has_small_factor_mersenne(M) && return false
+    # If d is large, it is worth it to try to wead out easy cases
+    d > 10007 && has_small_factor_mersenne(M) && return false
     return ll_primecheck(M)
 end
 
@@ -471,7 +472,7 @@ function linear_sieve(a,b,max)
     for p in PRIMES
         p > sqrtmax && break
         g,x,_ = gcdx(a, p)
-        if g!=1
+        if g != 1
             if mod(b,p) == 0
                 return typeof(max)[]
             end
