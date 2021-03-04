@@ -498,7 +498,7 @@ end
 # 2kd+1 for integer k
 function has_small_factor_mersenne(M::Integer)
     d = ndigits(M, base=2)
-    for factor in linear_sieve(2 * d, 1, 2^40)
+    for factor in linear_sieve(2 * d, 1, Int64(2)^40)
         factor & 7 in (3,5) && continue
         if powermod(2, d, factor) == 1
             return true
