@@ -242,6 +242,8 @@ end
 # Lucas-Lehmer
 @test !ismersenneprime(2047)
 @test ismersenneprime(8191)
+# With has_small_factor_mersenne this should only take about .01 seconds
+@test !ismersenneprime(big(2)^1257953-1)
 @test_throws ArgumentError ismersenneprime(9)
 @test_throws ArgumentError ismersenneprime(9, check=true)
 # test the following does not throw
