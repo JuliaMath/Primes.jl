@@ -807,7 +807,7 @@ julia> prevprimes(10, 3)
  3
 
 julia> prevprimes(10, 10)
-3-element Array{Int64,1}:
+4-element Array{Int64,1}:
  7
  5
  3
