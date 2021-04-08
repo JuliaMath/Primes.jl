@@ -111,9 +111,13 @@ primesmask(n::Integer) = n ≤ typemax(Int) ? primesmask(Int(n)) :
 
 Returns a collection of the prime numbers (from `lo`, if specified) up to `hi`.
 """
-function primes(lo::Int, hi::Int)
-    lo ≤ hi || throw(ArgumentError("The condition lo ≤ hi must be met."))
-    list = Int[]
+function primes(lo::Integer, hi::Integer)
+    typemin(Int) ≤ lo ≤ hi ≤ typemax(Int) || throw(ArgumentError(
+        "The condition $(typemin(Int)) ≤ lo ≤ hi ≤ $(typemax(Int)) must be met."))
+
+    T = promote_type(typeof(lo), typeof(hi))
+    list = T[]
+    lo, hi = Int(lo), Int(hi)
     lo ≤ 2 ≤ hi && push!(list, 2)
     lo ≤ 3 ≤ hi && push!(list, 3)
     lo ≤ 5 ≤ hi && push!(list, 5)
@@ -127,7 +131,9 @@ function primes(lo::Int, hi::Int)
     end
     return list
 end
-primes(n::Int) = primes(1, n)
+
+primes(n::Integer) = primes(one(n), n)
+
 
 const PRIMES = primes(2^16)
 
