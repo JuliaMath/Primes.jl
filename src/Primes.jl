@@ -256,7 +256,9 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     end
 
     local p::T
+    nsqrt = isqrt(n)
     for p in PRIMES
+        p > nsqrt && break
         if n % p == 0
             h[p] = get(h, p, 0) + 1
             n = div(n, p)
