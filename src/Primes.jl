@@ -267,6 +267,7 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
                 n = div(n, p)
             end
             n == 1 && return h
+            nsqrt = isqrt(n)
         end
     end
     isprime(n) && (h[n]=1; return h)
