@@ -256,7 +256,9 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     end
 
     local p::T
+    nsqrt = isqrt(n)
     for p in PRIMES
+        p > nsqrt && break
         if n % p == 0
             h[p] = get(h, p, 0) + 1
             n = div(n, p)
@@ -265,9 +267,10 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
                 n = div(n, p)
             end
             n == 1 && return h
-            isprime(n) && (h[n] = 1; return h)
+            nsqrt = isqrt(n)
         end
     end
+    isprime(n) && (h[n]=1; return h)
     T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
 end
 
