@@ -9,9 +9,11 @@ using Base: BitSigned
 using Base.Checked: checked_neg
 
 export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
-       nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
+       nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient,
+       SegmentedSieve
 
 include("factorization.jl")
+include("segmented_sieve/SegmentedSieve.jl")
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
