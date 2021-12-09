@@ -1,6 +1,6 @@
 name = "Primes"
 uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-version = "0.5.0"
+version = "0.5.1"
 
 [extras]
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
