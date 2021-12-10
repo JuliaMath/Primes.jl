@@ -704,8 +704,21 @@ julia> prime(3)
 
 ```
 """
-prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
-prime(i::Integer) = prime(Int, i)
+prime(::Type{T}, n::Integer) where {T<:Integer} = T(prime(n))
+function prime(n::Integer)
+    n = Int(n)
+    n < 0 && throw(DomainError(i))
+    n <= length(PRIMES) && return PRIMES[n]
+    n -= length(PRIMES)
+    p = 2^16
+    for q in 2 .^ (28:-4:8)
+        while n >= q
+            n -= sum(_primesmask(p,p+q))
+            p += q
+        end
+    end
+    return nextprime(p, n)
+end
 
 
 struct NextPrimes{T<:Integer}
