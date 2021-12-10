@@ -35,7 +35,7 @@ function _primesmask(limit::Int)
     limit < 7 && throw(ArgumentError("The condition limit ≥ 7 must be met."))
     n = wheel_index(limit)
     m = wheel_prime(n)
-    sieve = ones(Bool, n)
+    sieve = trues(n)
     @inbounds for i = 1:wheel_index(isqrt(limit))
         if sieve[i]
             p = wheel_prime(i)
@@ -56,7 +56,7 @@ function _primesmask(lo::Int, hi::Int)
     lo == 7 && return _primesmask(hi)
     wlo, whi = wheel_index(lo - 1), wheel_index(hi)
     m = wheel_prime(whi)
-    sieve = ones(Bool, whi - wlo)
+    sieve = trues(whi - wlo)
     hi < 49 && return sieve
     small_sieve = _primesmask(isqrt(hi))
     @inbounds for i = 1:length(small_sieve)  # don't use eachindex here
