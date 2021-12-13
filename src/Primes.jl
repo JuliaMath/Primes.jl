@@ -18,17 +18,17 @@ include("factorization.jl")
 #     https://en.wikipedia.org/wiki/Wheel_factorization
 #     http://primesieve.org
 #     Jonathan Sorenson, "An analysis of two prime number sieves", Computer Science Technical Report Vol. 1028, 1991
-const wheel         = [4,  2,  4,  2,  4,  6,  2,  6]
-const wheel_primes  = [7, 11, 13, 17, 19, 23, 29, 31]
-const wheel_indices = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 7, 7]
+const wheel         = (4,  2,  4,  2,  4,  6,  2,  6)
+const wheel_primes  = (7, 11, 13, 17, 19, 23, 29, 31)
+const wheel_indices = (0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 7, 7)
 
 @inline function wheel_index(n)
     d, r = divrem(n - 1, 30)
-    return 8d + wheel_indices[r + 2]
+    return 8d + @inbounds wheel_indices[r + 2]
 end
 @inline function wheel_prime(n)
     d, r = (n - 1) >>> 3, (n - 1) & 7
-    return 30d + wheel_primes[r + 1]
+    return 30d + @inbounds wheel_primes[r + 1]
 end
 
 function _primesmask(limit::Int)
@@ -51,14 +51,13 @@ function _primesmask(limit::Int)
     return sieve
 end
 
-function _primesmask(lo::Int, hi::Int)
+function _primesmask(lo::Int, hi::Int, small_sieve::AbstractVector{Bool}, sieve::AbstractVector{Bool})
     7 ≤ lo ≤ hi || throw(ArgumentError("The condition 7 ≤ lo ≤ hi must be met."))
     lo == 7 && return _primesmask(hi)
     wlo, whi = wheel_index(lo - 1), wheel_index(hi)
+    length(sieve) < whi-wlo && throw(ArgumentError("sieve is too small to store results"))
+    sieve .= true
     m = wheel_prime(whi)
-    sieve = ones(Bool, whi - wlo)
-    hi < 49 && return sieve
-    small_sieve = _primesmask(isqrt(hi))
     @inbounds for i = 1:length(small_sieve)  # don't use eachindex here
         if small_sieve[i]
             p = wheel_prime(i)
@@ -75,8 +74,15 @@ function _primesmask(lo::Int, hi::Int)
             end
         end
     end
+    sieve[whi-wlo+1 : end] .= false # clean up if buffer is to big
     return sieve
 end
+function _primesmask(lo::Int, hi::Int)
+    hi<49 && return _primesmask(lo, hi, Bool[], )
+    wlo, whi = wheel_index(lo - 1), wheel_index(hi)
+    _primesmask(lo, hi, _primesmask(isqrt(hi)), ones(Bool, whi - wlo))
+end
+
 
 """
     primesmask([lo,] hi)
@@ -130,6 +136,28 @@ end
 primes(n::Int) = primes(1, n)
 
 const PRIMES = primes(2^16)
+
+"""
+    count_primes([lo,] hi) Efficiently counts the number of primes in [lo, hi]
+"""
+function count_primes(lo::Int, hi::Int)
+    lo ≤ hi || throw(ArgumentError("The condition lo ≤ hi must be met."))
+    count = sum(lo .≤ (2,3,5) .≤ hi)
+    hi < 7 && return count
+    lo = max(7, lo)
+    if hi < 2^15
+        return count + sum(_primesmask(lo, hi))
+    end
+    segment = 122880 # 2^12 * 30
+    small_sieve = _primesmask(isqrt(hi))
+    sieve = trues(32768)
+    for s in lo:segment:hi
+        sieve = _primesmask(s, min(s+segment-1, hi), small_sieve, sieve)
+        count += sum(sieve)
+    end
+    return count
+end
+count_primes(hi::Int) = count_primes(1,hi)
 
 """
     isprime(n::Integer) -> Bool
