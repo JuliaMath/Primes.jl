@@ -230,10 +230,9 @@ isprime(n::Int128) = n < 2 ? false :
 
 
 # Trial division of small (< 2^16) precomputed primes +
-# Pollard rho's algorithm with Richard P. Brent optimizations
+# Lenstra elliptic curve algorithm
 #     https://en.wikipedia.org/wiki/Trial_division
-#     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
-#     http://maths-people.anu.edu.au/~brent/pub/pub051.html
+#     https://en.wikipedia.org/wiki/Lenstra_elliptic-curve_factorization
 #
 function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     # check for special cases
@@ -257,18 +256,17 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     for p in PRIMES
         p > nsqrt && break
         if n % p == 0
-            h[p] = get(h, p, 0) + 1
-            n = div(n, p)
-            while n % p == 0
+            while true
                 h[p] = get(h, p, 0) + 1
-                n = div(n, p)
+                n, r = divrem(n, p)
+                r != 0 && break
             end
             n == 1 && return h
             nsqrt = isqrt(n)
         end
     end
     isprime(n) && (h[n]=1; return h)
-    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
+    lenstrafactors!(widen(n), h)
 end
 
 
@@ -386,52 +384,84 @@ julia> radical(2*2*3)
 """
 radical(n) = prod(factor(Set, n))
 
-function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
-    while true
-        c::T = rand(1:(n - 1))
-        G::T = 1
-        r::K = 1
-        y::T = rand(0:(n - 1))
-        m::K = 100
-        ys::T = 0
-        q::T = 1
-        x::T = 0
-        while c == n - 2
-            c = rand(1:(n - 1))
+function primepowerfactor!(n::T, h::AbstractDict{K,Int}) where{T<:Integer,K<:Integer}
+    r = ceil(Int, inv(log(n, Primes.PRIMES[end])))+1
+    root = inthroot(n, r)
+    while r >= 2
+        if root^r == n && isprime(root)
+            h[root] = get(h, root, 0) + r
+            return true
         end
-        while G == 1
-            x = y
-            for i in 1:r
-                y = y^2 % n
-                y = (y + c) % n
+        r -= 1
+        root = inthroot(n, r)
+    end
+    return false
+end
+
+function lenstrafactors!(n::T, h::AbstractDict{K,Int}) where{T<:Integer,K<:Integer}
+    isprime(n) && (h[n] = get(h, n, 0)+1; return h)
+    primepowerfactor!(n::T, h) && return h
+    # bounds and runs per bound taken from
+    # https://www.rieselprime.de/ziki/Elliptic_curve_method
+    B1s = Int[2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
+                43e6, 11e7, 26e7, 85e7, 29e8, 76e8, 25e9]
+    runs = (74, 221, 453, 984, 2541, 4949, 8266, 20158,
+              47173, 77666, 42057, 69471, 102212, 188056, 265557)
+    for (B1, run) in zip(B1s, runs)
+        small_primes = primes(B1)
+        for a in -run:run
+            res = lenstra_get_factor(n, a, small_primes, B1)
+            if res != 1
+                isprime(res) ? h[res] = get(h, res, 0) + 1 : lenstrafactors!(res, h)
+                n = div(n,res)
+                primepowerfactor!(n::T, h) && return h
+                isprime(n) && (h[n] = get(h, n, 0) + 1; return h)
             end
-            k::K = 0
-            G = 1
-            while k < r && G == 1
-                ys = y
-                for i in 1:(m > (r - k) ? (r - k) : m)
-                    y = y^2 % n
-                    y = (y + c) % n
-                    q = (q * (x > y ? x - y : y - x)) % n
-                end
-                G = gcd(q, n)
-                k += m
-            end
-            r *= 2
-        end
-        G == n && (G = 1)
-        while G == 1
-            ys = ys^2 % n
-            ys = (ys + c) % n
-            G = gcd(x > ys ? x - ys : ys - x, n)
-        end
-        if G != n
-            isprime(G) ? h[G] = get(h, G, 0) + 1 : pollardfactors!(G, h)
-            G2 = div(n,G)
-            isprime(G2) ? h[G2] = get(h, G2, 0) + 1 : pollardfactors!(G2, h)
-            return h
         end
     end
+    throw(ArgumentError("This number is too big to be factored with this algorith effectively"))
+end
+
+function lenstra_get_factor(N::T, a, small_primes, plimit) where T <: Integer
+    x, y = T(0), T(1)
+    for B in small_primes
+        t = B^trunc(Int64, log(B, plimit))
+        xn, yn = T(0), T(0)
+        sx, sy = x, y
+
+        first = true
+        while t > 0
+            if isodd(t)
+                if first
+                    xn, yn = sx, sy
+                    first = false
+                else
+                    g, u, _ = gcdx(sx-xn, N)
+                    g > 1 && (g == N ? break : return g)
+                    u += N
+                    L  = (u*(sy-yn)) % N
+                    xs = (L*L - xn - sx) % N
+
+                    yn = (L*(xn - xs) - yn) % N
+                    xn = xs
+                end
+            end
+            g, u, _ = gcdx(2*sy, N)
+            g > 1 && (g == N ? break : return g)
+            u += N
+
+            L  = (u*(3*sx*sx + a)) % N
+            x2 = (L*L - 2*sx) % N
+
+            sy = (L*(sx - x2) - sy) % N
+            sx = x2
+
+            sy == 0 && return T(1)
+            t >>= 1
+        end
+        x, y = xn, yn
+    end
+    return T(1)
 end
 
 """
