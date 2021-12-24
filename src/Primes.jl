@@ -5,7 +5,7 @@ module Primes
 using Base.Iterators: repeated
 using SpecialFunctions #zeta function
 
-import Base: iterate, eltype, IteratorSize, IteratorEltype
+import Base: iterate, eltype, IteratorSize, IteratorEltype, Threads
 using Base: BitSigned
 using Base.Checked: checked_neg
 
@@ -695,26 +695,32 @@ end
     inthroot(n::Integer, r::Int)
 computes floor(n^(1/r)) precisely
 """
-function inthroot(n::T, r::Int) where T <: Integer
+function inthroot(x::BigInt, n::Int)
     ans = BigInt()
-    ccall((:__gmpz_root, :libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), ans, BigInt(n), r)
-    return T(ans)
+    ccall((:__gmpz_root, :libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), ans, BigInt(x), n)
+    ans
+end
+function inthroot(x::Int64, n::Int)
+    u, s = 1<<((64-leading_zeros(x)) ÷ n), x
+    while u != s
+        s = u
+        t = (n-1) * s + x ÷ (s ^ (n-1))
+        u = t ÷ n
+    end
+    return s
 end
 
-function _phi(n::Integer, a::Integer, prime_cache, sign=1)
-    a == 0 && return sign*n
-    a == 1 && return sign*(n-n÷2)
-    a == 2 && return sign*(n-n÷2 + n÷6 - n÷3)
-    a == 3 && return sign*(n - n÷2 + n÷6 - n÷3 - n÷5 + n÷10 + n÷15 - n÷30)
-    result = 0
-    while a>3
-        if n < prime_cache[a+1]
-            return result + sign
-        end
-        a -= 1
-        result += _phi(n÷prime_cache[a+1], a, prime_cache, -sign)
+function _phi(n::Integer, a::Integer, prime_cache)
+    a == 3 && return (n - n÷2 + n÷6 - n÷3 - n÷5 + n÷10 + n÷15 - n÷30)
+    a == 2 && return (n - n÷2 + n÷6 - n÷3)
+    a == 1 && return (n - n÷2)
+    a <= 0 && return n
+    a >= _pi_upper(n) && return 1
+    if a > _pi_upper(isqrt(n))
+        return max(_pi(n, prime_cache) - a, 0) + 1
     end
-    return result + _phi(n,a, prime_cache, sign)
+    result = @inbounds sum(_phi(n÷prime_cache[a], a-1, prime_cache) for a in 4:a)
+    return result + _phi(n, 3, prime_cache)
 end
 
 """
@@ -723,26 +729,36 @@ impliments the Meissel–Lehmer algorithm
 https://en.wikipedia.org/wiki/Meissel%E2%80%93Lehmer_algorithm
 theoretically, this is O(x/ln(x)^4) time, O(sqrt(x)) space
 """
-function _pi(n::Integer, prime_cache=nothing)
+function _pi(n::Integer)
     n <= 2^16 && return searchsortedlast(PRIMES, n)
     b = isqrt(n)
-    prime_cache==nothing && (prime_cache = primes(round(Int,b*log(b))))
+    b = round(Int,b*log(b))
+    _pi(n, b<=2^16 ? PRIMES : primes(b))
+end
+function _pi(n::Integer, prime_cache)
     n <= prime_cache[end] && return searchsortedlast(prime_cache, n)
     a = _pi(inthroot(n, 4), prime_cache)
     b = _pi(isqrt(n), prime_cache)
     c = _pi(inthroot(n, 3), prime_cache)
     result = _phi(n, a, prime_cache) + ((b + a - 2) * (b - a + 1)) ÷ 2
-    for i in a:(b-1)
+    for i in a:(c-1)
         nop = n ÷ prime_cache[i+1]
         result -= _pi(nop, prime_cache)
-        if i<c
-            b_i = _pi(isqrt(nop), prime_cache)
-            for j in i:(b_i-1)
-                result -= _pi(nop ÷ prime_cache[j+1], prime_cache) - j
-            end
+        b_i = _pi(isqrt(nop), prime_cache)
+        for j in i:(b_i-1)
+            result -= _pi(nop ÷ prime_cache[j+1], prime_cache) - j
         end
     end
+    for i in c:(b-1)
+        nop = n ÷ prime_cache[i+1]
+        result -= _pi(nop, prime_cache)
+    end
     result
+end
+
+function _pi_upper(n)
+    n <= 2^16 && return searchsortedlast(PRIMES, n)
+    round(Int, 10+n/(log(n)-1.1))
 end
 
 """
