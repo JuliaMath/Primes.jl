@@ -395,7 +395,7 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
         G::T = 1
         r::K = 1
         y::T = rand(0:(n - 1))
-        m::K = 1900
+        m::K = 100
         ys::T = 0
         q::T = 1
         x::T = 0
