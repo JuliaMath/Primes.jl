@@ -3,8 +3,9 @@
 module Primes
 
 using Base.Iterators: repeated
+using SpecialFunctions #zeta function
 
-import Base: iterate, eltype, IteratorSize, IteratorEltype
+import Base: iterate, eltype, IteratorSize, IteratorEltype, Threads
 using Base: BitSigned
 using Base.Checked: checked_neg
 
@@ -691,6 +692,113 @@ function prevprime(n::Integer, i::Integer=1; interval::Integer=1)
 end
 
 """
+    inthroot(n::Integer, r::Int)
+computes floor(n^(1/r)) precisely
+"""
+function inthroot(x::BigInt, n::Int)
+    ans = BigInt()
+    ccall((:__gmpz_root, :libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), ans, BigInt(x), n)
+    ans
+end
+function inthroot(x::Int64, n::Int)
+    u, s = 1<<((64-leading_zeros(x)) ÷ n), x
+    while u != s
+        s = u
+        t = (n-1) * s + x ÷ (s ^ (n-1))
+        u = t ÷ n
+    end
+    return s
+end
+
+function _phi(n::Integer, a::Integer, prime_cache)
+    a == 3 && return (n - n÷2 + n÷6 - n÷3 - n÷5 + n÷10 + n÷15 - n÷30)
+    a == 2 && return (n - n÷2 + n÷6 - n÷3)
+    a == 1 && return (n - n÷2)
+    a <= 0 && return n
+    a >= _pi_upper(n) && return 1
+    if a > _pi_upper(isqrt(n))
+        return max(_pi(n, prime_cache) - a, 0) + 1
+    end
+    result = @inbounds sum(_phi(n÷prime_cache[a], a-1, prime_cache) for a in 4:a)
+    return result + _phi(n, 3, prime_cache)
+end
+
+"""
+computes the number of primes p<=n
+impliments the Meissel–Lehmer algorithm
+https://en.wikipedia.org/wiki/Meissel%E2%80%93Lehmer_algorithm
+theoretically, this is O(x/ln(x)^4) time, O(sqrt(x)) space
+"""
+function _pi(n::Integer)
+    n <= 2^16 && return searchsortedlast(PRIMES, n)
+    b = isqrt(n)
+    b = round(Int,b*log(b))
+    _pi(n, b<=2^16 ? PRIMES : primes(b))
+end
+function _pi(n::Integer, prime_cache)
+    n <= prime_cache[end] && return searchsortedlast(prime_cache, n)
+    a = _pi(inthroot(n, 4), prime_cache)
+    b = _pi(isqrt(n), prime_cache)
+    c = _pi(inthroot(n, 3), prime_cache)
+    result = _phi(n, a, prime_cache) + ((b + a - 2) * (b - a + 1)) ÷ 2
+    for i in a:(c-1)
+        nop = n ÷ prime_cache[i+1]
+        result -= _pi(nop, prime_cache)
+        b_i = _pi(isqrt(nop), prime_cache)
+        for j in i:(b_i-1)
+            result -= _pi(nop ÷ prime_cache[j+1], prime_cache) - j
+        end
+    end
+    for i in c:(b-1)
+        nop = n ÷ prime_cache[i+1]
+        result -= _pi(nop, prime_cache)
+    end
+    result
+end
+
+function _pi_upper(n)
+    n <= 2^16 && return searchsortedlast(PRIMES, n)
+    round(Int, 10+n/(log(n)-1.1))
+end
+
+"""
+extremely accurate estimate of pi(n)
+it is a slighty modified version of the Gram series
+(also known as the Riemann prime counting function)
+https://mathworld.wolfram.com/GramSeries.html
+"""
+function _pi_est(x)
+    logx = log(x)
+    logxtk = logx
+    kfac = one(logx)
+    res = 1 - 1/logx + atan(pi/logx)/pi
+    for k in 1:10000
+        term = logxtk/(kfac*zeta(k+1)*k)
+        res += term
+        term <= eps(res) && return res
+        kfac *= k+1
+        logxtk *= logx
+    end
+end
+
+"""
+extremely accurate estimate of prime(n)
+uses Newton iteration to compute pi_est inverse
+using the fact that pi_est'(x) = 1 / log(x).
+"""
+function prime_est(x)
+    x < 2 && return 0
+    guess = x*(log(x) + log(log(x)) - 1)
+    old_term = Inf
+    while true
+        term = (_pi_est(guess) - x)*log(guess)
+        abs(term) >= abs(old_term) && return guess
+        guess -= term
+        old_term = term
+    end
+end
+
+"""
     prime(::Type{<:Integer}=Int, i::Integer)
 
 The `i`-th prime number.
@@ -704,8 +812,17 @@ julia> prime(3)
 
 ```
 """
-prime(::Type{T}, i::Integer) where {T<:Integer} = i < 0 ? throw(DomainError(i)) : nextprime(T(2), i)
-prime(i::Integer) = prime(Int, i)
+prime(::Type{T}, n::Integer) where {T<:Integer} = T(prime(n))
+function prime(n::Integer)
+    n = Int(n)
+    n < 0 && throw(DomainError(i))
+    n < length(PRIMES) && return PRIMES[n]
+    # the closer prime_est is, the less work this has to do.
+    p = round(Int, prime_est(big(n)))
+    n -= _pi(p)
+    n == 0 && return p
+    n >= 0 ? nextprime(p, n) : nextprime(p+1, n-1) # in case p is prime
+end
 
 
 struct NextPrimes{T<:Integer}
