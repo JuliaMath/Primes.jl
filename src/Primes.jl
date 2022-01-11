@@ -395,7 +395,7 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
         G::T = 1
         r::K = 1
         y::T = rand(0:(n - 1))
-        m::K = 1900
+        m::K = 100
         ys::T = 0
         q::T = 1
         x::T = 0
@@ -411,8 +411,8 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
             k::K = 0
             G = 1
             while k < r && G == 1
+                ys = y
                 for i in 1:(m > (r - k) ? (r - k) : m)
-                    ys = y
                     y = y^2 % n
                     y = (y + c) % n
                     q = (q * (x > y ? x - y : y - x)) % n
