@@ -177,7 +177,7 @@ julia> isprime(big(3))
 true
 ```
 """
-isprime(x::BigInt, reps=25) = is_probably_prime(x, reps)
+isprime(x::BigInt, reps=25) = is_probably_prime(x; reps=reps)
 
 # Miller-Rabin witness choices based on:
 #     http://mathoverflow.net/questions/101922/smallest-collection-of-bases-for-prime-testing-of-64-bit-numbers
