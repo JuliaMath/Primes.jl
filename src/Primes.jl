@@ -384,23 +384,21 @@ julia> radical(2*2*3)
 """
 radical(n) = prod(factor(Set, n))
 
-function primepowerfactor!(n::T, h::AbstractDict{K,Int}) where{T<:Integer,K<:Integer}
-    r = ceil(Int, inv(log(n, Primes.PRIMES[end])))+1
-    root = inthroot(n, r)
-    while r >= 2
-        if root^r == n && isprime(root)
-            h[root] = get(h, root, 0) + r
-            return true
+function factorpower!(n::Integer, h::AbstractDict{K,Int})
+    if ispower(n)
+        exponent = find_exponent(n)
+        root = iroot(n, exponent)
+        for (p,freq) in factor(root)
+            h[p] += freq * exponent
         end
-        r -= 1
-        root = inthroot(n, r)
+        return true
     end
     return false
 end
 
 function lenstrafactors!(n::T, h::AbstractDict{K,Int}) where{T<:Integer,K<:Integer}
     isprime(n) && (h[n] = get(h, n, 0)+1; return h)
-    primepowerfactor!(n::T, h) && return h
+    factorpower!(n, h) && return h
     # bounds and runs per bound taken from
     # https://www.rieselprime.de/ziki/Elliptic_curve_method
     B1s = Int[2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
@@ -414,7 +412,7 @@ function lenstrafactors!(n::T, h::AbstractDict{K,Int}) where{T<:Integer,K<:Integ
             if res != 1
                 isprime(res) ? h[res] = get(h, res, 0) + 1 : lenstrafactors!(res, h)
                 n = div(n,res)
-                primepowerfactor!(n::T, h) && return h
+                factorpower!(n, h) && return h
                 isprime(n) && (h[n] = get(h, n, 0) + 1; return h)
             end
         end
