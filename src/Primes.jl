@@ -7,6 +7,7 @@ using Base.Iterators: repeated
 import Base: iterate, eltype, IteratorSize, IteratorEltype
 using Base: BitSigned
 using Base.Checked: checked_neg
+using IntegerMathUtils
 
 export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
@@ -176,11 +177,7 @@ julia> isprime(big(3))
 true
 ```
 """
-isprime(x::BigInt, reps=25) = ccall((:__gmpz_probab_prime_p,:libgmp),
-                                    Cint, (Any, Cint), x, reps) > 0
-# TODO: Change `Any` to `Ref{BigInt}` when 0.6 support is dropped.
-# The two have the same effect but `Ref{BigInt}` won't be optimized on 0.6.
-
+isprime(x::BigInt, reps=25) = is_probably_prime(x; reps=reps)
 
 # Miller-Rabin witness choices based on:
 #     http://mathoverflow.net/questions/101922/smallest-collection-of-bases-for-prime-testing-of-64-bit-numbers
