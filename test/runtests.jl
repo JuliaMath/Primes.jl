@@ -261,7 +261,7 @@ for T = (Int, UInt, BigInt)
     @test f == d == Dict(f) == Factorization(d) == convert(Factorization, d)
     @test collect(f) == sort!(collect(d)) # test start/next/done
     @test length(f) == length(d)
-    @test get(f, T(101), nothing) == nothing
+    @test get(f, T(101), nothing) === nothing
     @test f[101] == 0
     @test f[0] == 0
     f[0] = 1
