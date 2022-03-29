@@ -1,6 +1,6 @@
 name = "Primes"
 uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-version = "0.5.1"
+version = "0.5.2"
 
 [deps]
 IntegerMathUtils = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
@@ -14,6 +14,5 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 test = ["DataStructures", "IntegerMathUtils", "Test"]
 
 [compat]
-DataStructures = "0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18"
 IntegerMathUtils = "0.1"
 julia = "1"
