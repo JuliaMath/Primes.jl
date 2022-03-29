@@ -11,6 +11,6 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 test = ["DataStructures", "IntegerMathUtils", "Test"]
 
 [compat]
-DataStructures = "0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17"
+DataStructures = "0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18"
 IntegerMathUtils = "0.1"
 julia = "1"
