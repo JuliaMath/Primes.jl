@@ -256,16 +256,14 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     nsqrt = isqrt(n)
     for p in PRIMES
         p > nsqrt && break
-        if n % p == 0
+        while true
+            q, r == divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
+            r == 0 || break
             h[p] = get(h, p, 0) + 1
-            n = div(n, p)
-            while n % p == 0
-                h[p] = get(h, p, 0) + 1
-                n = div(n, p)
-            end
-            n == 1 && return h
-            nsqrt = isqrt(n)
+            n = q
         end
+        n == 1 && return h
+        nsqrt = isqrt(n)
     end
     isprime(n) && (h[n]=1; return h)
     T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
