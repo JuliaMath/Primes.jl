@@ -257,7 +257,7 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     for p in PRIMES
         p > nsqrt && break
         while true
-            q, r == divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
+            q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
             r == 0 || break
             h[p] = get(h, p, 0) + 1
             n = q
