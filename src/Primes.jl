@@ -146,10 +146,12 @@ function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
-    for m in (2, 3, 5, 7, 11, 13, 17, 19, 23)
-        n % m == 0 && return n == m
+    if n < PRIMES[end]
+        return n == searchsortedfirst(PRIMES, n)
     end
-    n < 841 && return n > 1
+    for m in (2, 3, 5, 7, 11, 13, 17, 19, 23)
+        n % m == 0 && return false
+    end
     s = trailing_zeros(n - 1)
     d = (n - 1) >>> s
     for a in witnesses(n)::Tuple{Vararg{Int}}
