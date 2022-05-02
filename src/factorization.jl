@@ -19,20 +19,35 @@ Base.convert(::Type{Factorization}, d::AbstractDict) = Factorization(d)
 Base.iterate(f::Factorization, state...) = iterate(f.pe, state...)
 
 function Base.get(f::Factorization, p, default)
-    found = searchsorted(f.pe, p, by=first)
-    isempty(found) ?
-        default :
-        last(f.pe[first(found)])
+    found = searchsortedfirst(f.pe, p, by=first)
+    (found > length(f.pe) || first(f.pe[found])) != p  ? default : last(f.pe[found])
 end
 
 Base.getindex(f::Factorization, p::Integer) = get(f, p, 0)
 
 function Base.setindex!(f::Factorization{T}, e::Int, p::Integer) where T
-    found = searchsorted(f.pe, p, by=first)
-    if isempty(found)
-        insert!(f.pe, first(found), T(p)=>e)
+    found = searchsortedfirst(f.pe, p, by=first)
+    if found > length(f.pe)
+        push!(f.pe, T(p)=>e)
+    elseif first(f.pe[found]) != p
+        insert!(f.pe, found, T(p)=>e)
     else
-        f.pe[first(found)] = T(p)=>e
+        f.pe[found] = T(p)=>e
+    end
+    f
+end
+
+"""
+    impliments f[p] += e faster
+"""
+function increment!(f::Factorization{T}, e::Int, p::Integer) where T
+    found = searchsortedfirst(f.pe, p, by=first)
+    if found > length(f.pe)
+        push!(f.pe, T(p)=>e)
+    elseif first(f.pe[found]) != p
+        insert!(f.pe, found, T(p)=>e)
+    else
+        f.pe[found] = T(p)=>(last(f.pe[found])+e)
     end
     f
 end
