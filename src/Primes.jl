@@ -147,7 +147,7 @@ function isprime(n::Integer)
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
     if n < PRIMES[end]
-        return n == searchsortedfirst(PRIMES, n)
+        return n == PRIMES[searchsortedfirst(PRIMES, n)]
     end
     for m in (2, 3, 5, 7, 11, 13, 17, 19, 23)
         n % m == 0 && return false
