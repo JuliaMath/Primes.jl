@@ -4,7 +4,12 @@
 struct Factorization{T<:Integer} <: AbstractDict{T, Int}
     pe::Vector{Pair{T, Int}} # Prime-Exponent
 
-    Factorization{T}() where {T<:Integer} = new{T}(Vector{Pair{T, Int}}())
+    function Factorization{T}() where {T<:Integer}
+        # preallocates enough space that numbers smaller than 2310 won't need to resize
+        v = Vector{Pair{T, Int}}(undef, 4)
+        empty!(v)
+        new{T}(v)
+    end
 end
 
 function Factorization{T}(d::AbstractDict) where T<:Integer
