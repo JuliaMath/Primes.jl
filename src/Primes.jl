@@ -254,10 +254,14 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
 
     local p::T
     for p in PRIMES
+        num_p = 0
         while true
             q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
-            r == 0 || break
-            h[p] = get(h, p, 0) + 1
+            if r == 0
+                increment!(h, num_p, p) # h[p] += num_p (about 2x faster, but the speed only matters for small numbers)
+                break
+            end
+            num_p += 1
             n = q
         end
         p*p > n && break
