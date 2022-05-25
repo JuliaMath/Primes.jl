@@ -252,19 +252,19 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     end
 
     local p::T
-    nsqrt = isqrt(n)
     for p in PRIMES
-        p > nsqrt && break
-        if n % p == 0
-            while true
-                h[p] = get(h, p, 0) + 1
-                n, r = divrem(n, p)
-                r != 0 && break
-            end
-            n == 1 && return h
-            nsqrt = isqrt(n)
+        num_p = 0
+        while true
+            q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
+            r == 0 || break
+            num_p += 1
+            n = q
         end
+        # h[p] += num_p (about 2x faster, but the speed only matters for small numbers)
+        num_p > 0 && increment!(h, num_p, p)
+        p*p > n && break
     end
+    n == 1 && return h
     isprime(n) && (h[n]=1; return h)
     lenstrafactors!(widen(n), h)
 end
@@ -417,7 +417,7 @@ function lenstrafactors!(n::T, h::AbstractDict{K,Int}) where{T<:Integer,K<:Integ
             end
         end
     end
-    throw(ArgumentError("This number is too big to be factored with this algorith effectively"))
+    throw(ArgumentError("This number is too big to be factored with this algorithm effectively"))
 end
 
 function lenstra_get_factor(N::T, a, small_primes, plimit) where T <: Integer
