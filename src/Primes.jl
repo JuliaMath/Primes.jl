@@ -131,7 +131,7 @@ end
 primes(n::Int) = primes(1, n)
 
 # internal function for generating the minimum factor of a relatively small number
-funcion _min_factor(n)
+function _min_factor(n)
     n == 1 && return 1
     for i in 2:isqrt(n)
        n%i == 0 && return i
