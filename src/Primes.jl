@@ -270,7 +270,7 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     elseif n == 0
         h[n] = 1
         return h
-    elseif n <= MIN_FACTOR
+    elseif n <= length(MIN_FACTOR)
         while true
             n == 1 && return h
             if MIN_FACTOR[n]==1
