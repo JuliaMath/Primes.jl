@@ -130,7 +130,27 @@ function primes(lo::Int, hi::Int)
 end
 primes(n::Int) = primes(1, n)
 
-const PRIMES = primes(2^16)
+# internal function for generating the minimum factor of a relatively small number
+funcion _min_factor(n)
+    n == 1 && return 1
+    for i in 2:isqrt(n)
+       n%i == 0 && return i
+    end
+    return n
+end
+
+function _min_factors(limit)
+    res = Int[]
+    for i in 1:limit
+        m = _min_factor(i)
+        push!(res, m==i ? 1 : m)
+    end
+    return res
+end
+
+# `MIN_FACTOR[i]` is `1` if `i` is `1` or prime
+# otherwise, `MIN_FACTOR[i]` is the first number which factors `i`
+const MIN_FACTOR = UInt8.(_min_factors(MIN_FACTOR_SIZE))
 
 """
     isprime(n::Integer) -> Bool
@@ -146,10 +166,12 @@ function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
+    if n < length(MIN_FACTOR)
+        return n > 1 && MIN_FACTOR[n] == 1
+    end
     for m in (2, 3, 5, 7, 11, 13, 17, 19, 23)
         n % m == 0 && return n == m
     end
-    n < 841 && return n > 1
     s = trailing_zeros(n - 1)
     d = (n - 1) >>> s
     for a in witnesses(n)::Tuple{Vararg{Int}}
@@ -226,10 +248,10 @@ witnesses(n::Integer) =
 isprime(n::UInt128) =
     n ≤ typemax(UInt64) ? isprime(UInt64(n)) : isprime(BigInt(n))
 isprime(n::Int128) = n < 2 ? false :
-    n ≤ typemax(Int64)  ? isprime(Int64(n))  : isprime(BigInt(n))
+    n ≤ typemax(UInt64)  ? isprime(UInt64(n))  : isprime(BigInt(n))
 
-
-# Trial division of small (< 2^16) precomputed primes +
+# Cache of small factors for tiny numbers (n < 2^16)
+# Trial division of small (< 2^16) precomputed primes
 # Pollard rho's algorithm with Richard P. Brent optimizations
 #     https://en.wikipedia.org/wiki/Trial_division
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
@@ -245,15 +267,27 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
         else
             return factor!(checked_neg(n), h)
         end
-    elseif n == 1
+    elseif n == 0
+        h[n] = 1
         return h
-    elseif n == 0 || isprime(n)
+    elseif n <= MIN_FACTOR
+        while true
+            n == 1 && return h
+            if MIN_FACTOR[n]==1
+                increment!(h, 1, n)
+                return h
+            else
+                increment!(h, 1, MIN_FACTOR[n])
+                n = div(n, MIN_FACTOR[n])
+           end
+        end
+    elseif isprime(n)
         h[n] = 1
         return h
     end
-
     local p::T
-    for p in PRIMES
+    for p in 2:length(MIN_FACTOR)
+        MIN_FACTOR[p] == 1 || continue
         num_p = 0
         while true
             q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
