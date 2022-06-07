@@ -150,7 +150,7 @@ end
 
 # `MIN_FACTOR[i]` is `1` if `i` is `1` or prime
 # otherwise, `MIN_FACTOR[i]` is the first number which factors `i`
-const MIN_FACTOR = UInt8.(_min_factors(MIN_FACTOR_SIZE))
+const MIN_FACTOR = UInt8.(_min_factors(2^16))
 
 """
     isprime(n::Integer) -> Bool
