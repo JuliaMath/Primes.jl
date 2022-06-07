@@ -166,7 +166,7 @@ function isprime(n::Integer)
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
     n < 2 && return false
-    trailing_zeros(n) > 1 && return n==2
+    trailing_zeros(n) > 0 && return n==2
     if n < N_SMALL_FACTORS
         return _min_factor(n) == 1
     end
@@ -276,7 +276,7 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
         increment!(h, tz, 2)
         n >>= tz
     end
-    if n <= N_SMALL_FACTORS 
+    if n <= N_SMALL_FACTORS
         while true
             n == 1 && return h
             if _min_factor(n)==1
