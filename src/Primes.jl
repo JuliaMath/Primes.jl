@@ -260,30 +260,28 @@ isprime(n::Int128) = n < 2 ? false :
 function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     # check for special cases
     if n < 0
-        h[-1] = 1
+        h[-1] = 1 - h[-1]
         if isa(n, BitSigned) && n == typemin(T)
-            h[2] = 8 * sizeof(T) - 1
+            h[2] += 8 * sizeof(T) - 1
             return h
         else
             return factor!(checked_neg(n), h)
         end
     elseif n == 0
-        h[n] = 1
+        h[n] = 0
         return h
     elseif n <= length(MIN_FACTOR)
         while true
             n == 1 && return h
             if MIN_FACTOR[n]==1
-                increment!(h, 1, n)
-                return h
+                return increment!(h, 1, n)
             else
                 increment!(h, 1, MIN_FACTOR[n])
                 n = div(n, MIN_FACTOR[n])
            end
         end
     elseif isprime(n)
-        h[n] = 1
-        return h
+        return increment!(h, 1, n)
     end
     local p::T
     for p in 2:length(MIN_FACTOR)
@@ -296,11 +294,15 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
             n = q
         end
         # h[p] += num_p (about 2x faster, but the speed only matters for small numbers)
-        num_p > 0 && increment!(h, num_p, p)
+        if num_p > 0
+            increment!(h, num_p, p)
+            # if n is small, then recursing will hit the fast path.
+            n < length(MIN_FACTOR) && return factor!(n, h)
+        end
         p*p > n && break
     end
     n == 1 && return h
-    isprime(n) && (h[n]=1; return h)
+    isprime(n) && return increment!(h, 1, n)
     T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
 end
 
