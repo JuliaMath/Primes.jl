@@ -269,9 +269,9 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
             return factor!(checked_neg(n), h)
         end
     elseif n == 0
-        h[n] = 0
+        h[n] = 1
         return h
-    elseif trailing_zeros(n) > 1
+    elseif trailing_zeros(n) > 0
         tz = trailing_zeros(n)
         increment!(h, tz, 2)
         n >>= tz
