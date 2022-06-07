@@ -56,7 +56,10 @@ function increment!(f::Factorization{T}, e::Int, p::Integer) where T
     end
     f
 end
-increment!(f::AbstractDict, e::Int, p::Integer) = (f[p] = get(f, p, 0) + e)
+function increment!(f::AbstractDict, e::Int, p::Integer)
+    f[p] = get(f, p, 0) + e
+    return f
+end
 
 Base.length(f::Factorization) = length(f.pe)
 
