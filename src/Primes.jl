@@ -130,27 +130,26 @@ function primes(lo::Int, hi::Int)
 end
 primes(n::Int) = primes(1, n)
 
-# internal function for generating the minimum factor of a relatively small number
-function _min_factor(n)
-    n == 1 && return 1
-    for i in 2:isqrt(n)
-       n%i == 0 && return i
+function _generate_min_factors(limit)
+    function min_factor(n)
+        n < 4 && return n
+        for i in 3:2:isqrt(n)
+           n%i == 0 && return i
+        end
+        return n
     end
-    return n
-end
-
-function _min_factors(limit)
     res = Int[]
-    for i in 1:limit
-        m = _min_factor(i)
+    for i in 3:2:limit
+        m = min_factor(i)
         push!(res, m==i ? 1 : m)
     end
     return res
 end
 
-# `MIN_FACTOR[i]` is `1` if `i` is `1` or prime
-# otherwise, `MIN_FACTOR[i]` is the first number which factors `i`
-const MIN_FACTOR = UInt8.(_min_factors(2^16))
+const N_SMALL_FACTORS = 2^16
+const _MIN_FACTOR = UInt8.(_generate_min_factors(N_SMALL_FACTORS))
+# _min_factor(n) = 1 if n is prime, otherwise the minimum factor of n
+_min_factor(n) = _MIN_FACTOR[n>>1]
 
 """
     isprime(n::Integer) -> Bool
@@ -166,11 +165,13 @@ function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
-    if n < length(MIN_FACTOR)
-        return n > 1 && MIN_FACTOR[n] == 1
+    n < 2 && return false
+    trailing_zeros(n) > 1 && return n==2
+    if n < N_SMALL_FACTORS
+        return _min_factor(n) == 1
     end
-    for m in (2, 3, 5, 7, 11, 13, 17, 19, 23)
-        n % m == 0 && return n == m
+    for m in (3, 5, 7, 11, 13, 17, 19, 23)
+        n % m == 0 && return false
     end
     s = trailing_zeros(n - 1)
     d = (n - 1) >>> s
@@ -270,22 +271,27 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     elseif n == 0
         h[n] = 0
         return h
-    elseif n <= length(MIN_FACTOR)
+    elseif trailing_zeros(n) > 1
+        tz = trailing_zeros(n)
+        increment!(h, tz, 2)
+        n >>= tz
+    end
+    if n <= N_SMALL_FACTORS 
         while true
             n == 1 && return h
-            if MIN_FACTOR[n]==1
+            if _min_factor(n)==1
                 return increment!(h, 1, n)
             else
-                increment!(h, 1, MIN_FACTOR[n])
-                n = div(n, MIN_FACTOR[n])
+                increment!(h, 1, _min_factor(n))
+                n = div(n, _min_factor(n))
            end
         end
     elseif isprime(n)
         return increment!(h, 1, n)
     end
     local p::T
-    for p in 2:length(MIN_FACTOR)
-        MIN_FACTOR[p] == 1 || continue
+    for p in 3:2:N_SMALL_FACTORS
+        _min_factor(p) == 1 || continue
         num_p = 0
         while true
             q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
@@ -297,7 +303,7 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
         if num_p > 0
             increment!(h, num_p, p)
             # if n is small, then recursing will hit the fast path.
-            n < length(MIN_FACTOR) && return factor!(n, h)
+            n < N_SMALL_FACTORS && return factor!(n, h)
         end
         p*p > n && break
     end
