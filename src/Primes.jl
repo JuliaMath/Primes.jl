@@ -193,11 +193,9 @@ end
 
 """
     isprime(x::BigInt, [reps = 25]) -> Bool
-
 Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
 and `false` if `x` is composite (not prime). The false positive rate is about `0.25^reps`.
 `reps = 25` is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
-
 ```julia
 julia> isprime(big(3))
 true
@@ -307,11 +305,11 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
             num_p += 1
         end
         return (p, num_p), (n, p)
-    elseif isprime(n)
+    elseif p == 3 && isprime(n)
         return (n, 1), (T(1), n)
     end
     for p in p:2:N_SMALL_FACTORS
-        isprime(p) || continue
+        _min_factor(p) == p || continue
         num_p = 0
         while true
             q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
@@ -320,11 +318,14 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
             n = q
         end
         if num_p > 0
-            return (p, num_p), (n, p)
+            return (p, num_p), (n, p+2)
         end
         p*p > n && break
     end
-    isprime(n) && (n, 1), (T(1), n)
+    # if n < 2^32, then if it wasn't prime, we would have found the factors by trial division
+    if n <= 2^32 || isprime(n)
+        return (n, 1), (T(1), n)
+    end
     should_widen = T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n)
     p = should_widen ? pollardfactor(n) : pollardfactor(widen(n))
     num_p = 0
