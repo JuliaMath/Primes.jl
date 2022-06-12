@@ -259,7 +259,7 @@ end
 
 IteratorSize(::Type{<:FactorIterator}) = Base.SizeUnknown()
 IteratorEltype(::Type{<:FactorIterator}) = Base.HasEltype()
-eltype(::Type{FactorIterator{T}}) where {T} = T
+eltype(::Type{FactorIterator{T}}) where {T} = Tuple{T, Int}
 Base.isempty(f::FactorIterator) = f.n == 1
 
 # Iterates over the factors of n in an arbitrary order
