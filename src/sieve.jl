@@ -42,9 +42,10 @@ function _primesmask(limit::Int)
         end
         sieve.chunks[i] = presieve_mask
     end
-    for p in PRESIEVE_PRIMES
-        sieve[wheel_index(p)] = true
-    end
+    # undo the fact that presieving sets the `PRESIEVE_PRIMES` to `false`
+    # 0x1f is the bitmask for setting sieve[1:5] to true (and doesn't need to check the length of sieve)
+    sieve.chunks[1] |= 0x1f
+    
     # Then sieve remaining primes 1 match at a time.
     @inbounds for i = (N_PRESIEVE_PRIMES+1):wheel_index(isqrt(limit))
         if sieve[i]
