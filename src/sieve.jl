@@ -25,7 +25,7 @@ const N_PRESIEVE_PRIMES = 5
 const PRESIEVE_PRIMES = (7,11,13,17,19)
 const PRESIEVE_CHUNKS = Vector{Vector{UInt64}}(undef, N_PRESIEVE_PRIMES)
 for (i,p) in zip(1:N_PRESIEVE_PRIMES,PRESIEVE_PRIMES)
-   PRESIEVE_CHUNKS[i] = BitVector(wheel_prime(x)%p!=0 for x in 1:(64*p)).chunks
+   PRESIEVE_CHUNKS[i] = BitVector([wheel_prime(x)%p!=0 for x in 1:(64*p)]).chunks
 end
 
 function _primesmask(limit::Int)
@@ -36,7 +36,7 @@ function _primesmask(limit::Int)
     # First sieve small primes 64 bits at a time.
     # Loop order here is slightly more computation, but reduces passes over memory
     @inbounds for i in eachindex(sieve.chunks)
-        presieve_mask = 0-UInt(1)
+        presieve_mask = 0-UInt64(1)
         for (j,p) in zip(1:N_PRESIEVE_PRIMES,PRESIEVE_PRIMES)
              presieve_mask &= PRESIEVE_CHUNKS[j][(i-1) % p + 1]
         end
@@ -45,7 +45,7 @@ function _primesmask(limit::Int)
     # undo the fact that presieving sets the `PRESIEVE_PRIMES` to `false`
     # 0x1f is the bitmask for setting sieve[1:5] to true (and doesn't need to check the length of sieve)
     sieve.chunks[1] |= 0x1f
-    
+
     # Then sieve remaining primes 1 match at a time.
     @inbounds for i = (N_PRESIEVE_PRIMES+1):wheel_index(isqrt(limit))
         if sieve[i]
