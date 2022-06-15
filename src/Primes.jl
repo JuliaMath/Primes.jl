@@ -130,7 +130,26 @@ function primes(lo::Int, hi::Int)
 end
 primes(n::Int) = primes(1, n)
 
-const PRIMES = primes(2^16)
+function _generate_min_factors(limit)
+    function min_factor(n)
+        n < 4 && return n
+        for i in 3:2:isqrt(n)
+           n%i == 0 && return i
+        end
+        return n
+    end
+    res = Int[]
+    for i in 3:2:limit
+        m = min_factor(i)
+        push!(res, m==i ? 1 : m)
+    end
+    return res
+end
+
+const N_SMALL_FACTORS = 2^16
+const _MIN_FACTOR = UInt8.(_generate_min_factors(N_SMALL_FACTORS))
+# _min_factor(n) = 1 if n is prime, otherwise the minimum factor of n
+_min_factor(n) = _MIN_FACTOR[n>>1]
 
 """
     isprime(n::Integer) -> Bool
@@ -146,10 +165,14 @@ function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
-    for m in (2, 3, 5, 7, 11, 13, 17, 19, 23)
-        n % m == 0 && return n == m
+    n < 2 && return false
+    trailing_zeros(n) > 0 && return n==2
+    if n < N_SMALL_FACTORS
+        return _min_factor(n) == 1
     end
-    n < 841 && return n > 1
+    for m in (3, 5, 7, 11, 13, 17, 19, 23)
+        n % m == 0 && return false
+    end
     s = trailing_zeros(n - 1)
     d = (n - 1) >>> s
     for a in witnesses(n)::Tuple{Vararg{Int}}
@@ -226,10 +249,10 @@ witnesses(n::Integer) =
 isprime(n::UInt128) =
     n ≤ typemax(UInt64) ? isprime(UInt64(n)) : isprime(BigInt(n))
 isprime(n::Int128) = n < 2 ? false :
-    n ≤ typemax(Int64)  ? isprime(Int64(n))  : isprime(BigInt(n))
+    n ≤ typemax(UInt64)  ? isprime(UInt64(n))  : isprime(BigInt(n))
 
-
-# Trial division of small (< 2^16) precomputed primes +
+# Cache of small factors for tiny numbers (n < 2^16)
+# Trial division of small (< 2^16) precomputed primes
 # Pollard rho's algorithm with Richard P. Brent optimizations
 #     https://en.wikipedia.org/wiki/Trial_division
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
@@ -238,22 +261,37 @@ isprime(n::Int128) = n < 2 ? false :
 function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     # check for special cases
     if n < 0
-        h[-1] = 1
+        h[-1] = 1 - h[-1]
         if isa(n, BitSigned) && n == typemin(T)
-            h[2] = 8 * sizeof(T) - 1
+            h[2] += 8 * sizeof(T) - 1
             return h
         else
             return factor!(checked_neg(n), h)
         end
-    elseif n == 1
-        return h
-    elseif n == 0 || isprime(n)
+    elseif n == 0
         h[n] = 1
         return h
+    elseif trailing_zeros(n) > 0
+        tz = trailing_zeros(n)
+        increment!(h, tz, 2)
+        n >>= tz
     end
-
+    if n <= N_SMALL_FACTORS
+        while true
+            n == 1 && return h
+            if _min_factor(n)==1
+                return increment!(h, 1, n)
+            else
+                increment!(h, 1, _min_factor(n))
+                n = div(n, _min_factor(n))
+           end
+        end
+    elseif isprime(n)
+        return increment!(h, 1, n)
+    end
     local p::T
-    for p in PRIMES
+    for p in 3:2:N_SMALL_FACTORS
+        _min_factor(p) == 1 || continue
         num_p = 0
         while true
             q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
@@ -262,11 +300,15 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
             n = q
         end
         # h[p] += num_p (about 2x faster, but the speed only matters for small numbers)
-        num_p > 0 && increment!(h, num_p, p)
+        if num_p > 0
+            increment!(h, num_p, p)
+            # if n is small, then recursing will hit the fast path.
+            n < N_SMALL_FACTORS && return factor!(n, h)
+        end
         p*p > n && break
     end
     n == 1 && return h
-    isprime(n) && (h[n]=1; return h)
+    isprime(n) && return increment!(h, 1, n)
     T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
 end
 
