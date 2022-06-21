@@ -7,6 +7,7 @@ DocTestSetup = :(using Primes)
 ## Prime factorization
 
 ```@docs
+Primes.eachfactor
 Primes.factor
 Primes.prodfactors
 ```
