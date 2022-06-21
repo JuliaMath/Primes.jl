@@ -272,6 +272,13 @@ Base.isempty(f::FactorIterator) = f.n == 1
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
+
+"""
+   eachfactor(n::Integer)->FactorIterator
+Returns a lazy iterator of factors of `n` in `(factor, multiplicity)` pairs.
+This can be very useful for computing multiplicitive functions since for small numbers (eg numbers with no factor `>2^16`),
+allocating the storage required for `factor(n)` can introduce significant overhead.
+"""
 eachfactor(n::Integer) = FactorIterator(n)
 
 # state[1] is the current number to factor (this decreases when factors are found)
