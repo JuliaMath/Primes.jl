@@ -242,7 +242,7 @@ end
 # test eachfactor iteration
 @test iterate(eachfactor(36)) == ((2, 2), (9, 3))
 @test iterate(eachfactor(7^2*5^3)) == ((5, 3), (49, 5))
-@test iterate(eachfactor(257) == ((257, 1), (1, 257))
+@test iterate(eachfactor(257)) == ((257, 1), (1, 257))
 @test iterate(eachfactor(nextprime(2^16))) == ((65537, 1), (1, 65537))
                     
 # Lucas-Lehmer
