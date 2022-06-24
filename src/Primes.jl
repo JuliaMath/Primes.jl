@@ -9,7 +9,7 @@ using Base: BitSigned
 using Base.Checked: checked_neg
 using IntegerMathUtils
 
-export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
+export isprime, primes, primesmask, factor, eachfactor, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
 include("factorization.jl")
@@ -148,8 +148,11 @@ end
 
 const N_SMALL_FACTORS = 2^16
 const _MIN_FACTOR = UInt8.(_generate_min_factors(N_SMALL_FACTORS))
-# _min_factor(n) = 1 if n is prime, otherwise the minimum factor of n
-_min_factor(n) = _MIN_FACTOR[n>>1]
+# _min_factor(n) = the minimum factor of n for odd n, if 1<n<N_SMALL_FACTORS
+function _min_factor(n::T) where T<:Integer
+    m = _MIN_FACTOR[n>>1]
+    return m==1 ? n : T(m)
+end
 
 """
     isprime(n::Integer) -> Bool
@@ -168,7 +171,7 @@ function isprime(n::Integer)
     n < 2 && return false
     trailing_zeros(n) > 0 && return n==2
     if n < N_SMALL_FACTORS
-        return _min_factor(n) == 1
+        return _min_factor(n) == n
     end
     for m in (3, 5, 7, 11, 13, 17, 19, 23)
         n % m == 0 && return false
@@ -190,11 +193,9 @@ end
 
 """
     isprime(x::BigInt, [reps = 25]) -> Bool
-
 Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
 and `false` if `x` is composite (not prime). The false positive rate is about `0.25^reps`.
 `reps = 25` is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
-
 ```julia
 julia> isprime(big(3))
 true
@@ -251,47 +252,71 @@ isprime(n::UInt128) =
 isprime(n::Int128) = n < 2 ? false :
     n ≤ typemax(UInt64)  ? isprime(UInt64(n))  : isprime(BigInt(n))
 
-# Cache of small factors for tiny numbers (n < 2^16)
+struct FactorIterator{T<:Integer}
+    n::T
+    FactorIterator(n::T) where {T} = new{T}(n)
+end
+
+IteratorSize(::Type{<:FactorIterator}) = Base.SizeUnknown()
+IteratorEltype(::Type{<:FactorIterator}) = Base.HasEltype()
+eltype(::Type{FactorIterator{T}}) where {T} = Tuple{T, Int}
+Base.isempty(f::FactorIterator) = f.n == 1
+
+# Iterates over the factors of n in an arbitrary order
+# Uses a variety of algorithms depending on the size of n to find a factor.
+#     https://en.algorithmica.org/hpc/algorithms/factorization
+# Cache of small factors for small numbers (n < 2^16)
 # Trial division of small (< 2^16) precomputed primes
 # Pollard rho's algorithm with Richard P. Brent optimizations
 #     https://en.wikipedia.org/wiki/Trial_division
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
-function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
-    # check for special cases
-    if n < 0
-        h[-1] = 1 - h[-1]
-        if isa(n, BitSigned) && n == typemin(T)
-            h[2] += 8 * sizeof(T) - 1
-            return h
-        else
-            return factor!(checked_neg(n), h)
+
+"""
+   eachfactor(n::Integer)->FactorIterator
+Returns a lazy iterator of factors of `n` in `(factor, multiplicity)` pairs.
+This can be very useful for computing multiplicitive functions since for small numbers (eg numbers with no factor `>2^16`),
+allocating the storage required for `factor(n)` can introduce significant overhead.
+"""
+eachfactor(n::Integer) = FactorIterator(n)
+
+# state[1] is the current number to factor (this decreases when factors are found)
+# state[2] is the prime to start trial division with.
+function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
+    n, p::T = state
+    if n <= p
+        n == 1 && return nothing
+        if n < 0
+            # if n is typemin, we can't negate it properly
+            # instead we set p=n which we can detect here.
+            if isa(n, BitSigned) && n == typemin(T)
+                if n != p
+                    return (T(-1), 1), (n, n)
+                end
+                return (T(2), 8 * sizeof(T) - 1), T.((1, 1))
+            end
+            return  (T(-1), 1), (-n, p)
         end
-    elseif n == 0
-        h[n] = 1
-        return h
-    elseif trailing_zeros(n) > 0
-        tz = trailing_zeros(n)
-        increment!(h, tz, 2)
-        n >>= tz
+        n == 0 && return (T(n), 1), (T(1), p)
     end
+    tz = trailing_zeros(n)
+    tz>0 && return (T(2), tz), (n >> tz, p)
     if n <= N_SMALL_FACTORS
+        p = _min_factor(n)
+        num_p = 1
         while true
-            n == 1 && return h
-            if _min_factor(n)==1
-                return increment!(h, 1, n)
-            else
-                increment!(h, 1, _min_factor(n))
-                n = div(n, _min_factor(n))
-           end
+            n = div(n, p)
+            n == 1 && break
+            _min_factor(n) == p || break
+            num_p += 1
         end
-    elseif isprime(n)
-        return increment!(h, 1, n)
+        return (p, num_p), (n, p)
+    elseif p == 3 && isprime(n)
+        return (n, 1), (T(1), n)
     end
-    local p::T
-    for p in 3:2:N_SMALL_FACTORS
-        _min_factor(p) == 1 || continue
+    for p in p:2:N_SMALL_FACTORS
+        _min_factor(p) == p || continue
         num_p = 0
         while true
             q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
@@ -299,17 +324,31 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
             num_p += 1
             n = q
         end
-        # h[p] += num_p (about 2x faster, but the speed only matters for small numbers)
         if num_p > 0
-            increment!(h, num_p, p)
-            # if n is small, then recursing will hit the fast path.
-            n < N_SMALL_FACTORS && return factor!(n, h)
+            return (p, num_p), (n, p+2)
         end
         p*p > n && break
     end
-    n == 1 && return h
-    isprime(n) && return increment!(h, 1, n)
-    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
+    # if n < 2^32, then if it wasn't prime, we would have found the factors by trial division
+    if n <= 2^32 || isprime(n)
+        return (n, 1), (T(1), n)
+    end
+    should_widen = T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n)
+    p = should_widen ? pollardfactor(n) : pollardfactor(widen(n))
+    num_p = 0
+    while true
+        q, r = divrem(n, p)
+        r != 0 && return (p, num_p), (n, p)
+        num_p += 1
+        n = q
+    end
+end
+
+function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
+    for (p, num_p) in eachfactor(n)
+        increment!(h, num_p, p)
+    end
+    return h
 end
 
 
@@ -425,15 +464,15 @@ julia> radical(2*2*3)
 6
 ```
 """
-radical(n) = prod(factor(Set, n))
+radical(n) = n==1 ? one(n) : prod(p for (p, num_p) in eachfactor(n))
 
-function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
+function pollardfactor(n::T) where {T<:Integer}
     while true
         c::T = rand(1:(n - 1))
         G::T = 1
-        r::K = 1
+        r::T = 1
         y::T = rand(0:(n - 1))
-        m::K = 100
+        m::T = 100
         ys::T = 0
         q::T = 1
         x::T = 0
@@ -446,7 +485,7 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
                 y = y^2 % n
                 y = (y + c) % n
             end
-            k::K = 0
+            k::T = 0
             G = 1
             while k < r && G == 1
                 ys = y
@@ -467,10 +506,13 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
             G = gcd(x > ys ? x - ys : ys - x, n)
         end
         if G != n
-            isprime(G) ? h[G] = get(h, G, 0) + 1 : pollardfactors!(G, h)
             G2 = div(n,G)
-            isprime(G2) ? h[G2] = get(h, G2, 0) + 1 : pollardfactors!(G2, h)
-            return h
+            f = min(G, G2)
+            _gcd = gcd(G, G2)
+            if _gcd != 1
+                f = _gcd
+            end
+            return isprime(f) ? f : pollardfactor(f)
         end
     end
 end
@@ -569,8 +611,16 @@ positive integers less than or equal to ``n`` that are relatively prime to
 The totient function of `n` when `n` is negative is defined to be
 `totient(abs(n))`.
 """
-function totient(n::Integer)
-    totient(factor(abs(n)))
+function totient(n::T) where T<:Integer
+    n = abs(n)
+    if n == 0
+        throw(ArgumentError("ϕ(0) is not defined"))
+    end
+    result = one(T)
+    for (p, k) in eachfactor(n)
+        result *= p^(k-1) * (p - 1)
+    end
+    result
 end
 
 # add: checked add (when makes sense), result of same type as first argument
