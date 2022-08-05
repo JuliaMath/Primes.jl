@@ -1,5 +1,4 @@
 # This file includes code that was formerly a part of Julia. License is MIT: http://julialang.org/license
-
 module Primes
 
 using Base.Iterators: repeated
@@ -9,7 +8,7 @@ using Base: BitSigned
 using Base.Checked: checked_neg
 using IntegerMathUtils
 
-export isprime, primes, primesmask, factor, eachfactor, ismersenneprime, isrieselprime,
+export isprime, primes, primesmask, factor, eachfactor, divisors, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
 include("factorization.jl")
@@ -907,5 +906,87 @@ julia> prevprimes(10, 10)
 """
 prevprimes(start::T, n::Integer) where {T<:Integer} =
     collect(T, Iterators.take(prevprimes(start), n))
+
+"""
+    divisors(n::T) -> Vector{T}
+
+Return a vector of all positive divisors of an integer `n`.
+
+For an integer `n` with prime factorization `n = p₁^k₁ ⋯ pₘ^kₘ`, `divisors(n)`
+returns a vector of length (k₁ + 1)⋯(kₘ + 1) containing the divisors of `n` in
+lexicographic (rather than numerical) order.
+
+```julia
+julia> divisors(60)
+12-element Vector{Int64}:
+  1      # 1
+  2      # 2
+  4      # 2 * 2
+  3      # 3
+  6      # 3 * 2
+ 12      # 3 * 2 * 2
+  5      # 5
+ 10      # 5 * 2
+ 20      # 5 * 2 * 2
+ 15      # 5 * 3
+ 30      # 5 * 3 * 2
+ 60      # 5 * 3 * 2 * 2
+```
+
+`divisors(-n)` is equivalent to `divisors(n)`.
+
+`divisors(0)` returns `[]`.
+"""
+function divisors(n::T)::Vector{T} where {T<:Integer}
+    if iszero(n)
+        return T[]
+    elseif isone(n)
+        return T[n]
+    elseif n < 0
+        return divisors(abs(n))
+    else
+        return divisors(factor(n))
+    end
+end
+
+"""
+    divisors(factors::Factorization{T}) -> Vector{T}
+
+Return a vector containing the divisors of the number described by `factors`. 
+Divisors are sorted lexicographically, rather than numerically.
+"""
+function divisors(factors::Primes.Factorization{T})::Vector{T} where {T<:Integer}
+    pe = factors.pe
+
+    if isempty(pe)
+        return T[one(T)] # n == 1
+    elseif pe[1][1] == 0 # n == 0
+        return T[]
+    elseif pe[1][1] == -1 # n < 0
+        if length(pe) == 1 # n == -1
+            return T[one(T)]
+        else
+            pe = pe[2:end]
+        end
+    end
+
+    i::Int = 1
+    m::Int = 1
+    divs = Vector{T}(undef, prod(x -> x.second + 1, pe))
+    divs[i] = one(T)
+
+    for (p, k) in pe
+        i = 1
+        for _ in 1:k
+            for j in i:(i+m-1)
+                divs[j+m] = divs[j] * p
+            end
+            i += m
+        end
+        m += i - 1
+    end
+
+    return divs
+end
 
 end # module
