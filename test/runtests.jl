@@ -236,6 +236,13 @@ end
 
 @test factor(1) == Dict{Int,Int}()
 
+# correctly return sign of factored numbers
+@test sign(factor(100)) == 1
+@test sign(factor(1)) == 1
+@test sign(factor(0)) == 0
+@test sign(factor(-1)) == -1
+@test sign(factor(-100)) == -1
+
 # factor returns a sorted dict
 @test all([issorted(collect(factor(rand(Int)))) for x in 1:100])
 
@@ -319,7 +326,7 @@ divisors_brute_force(n) = [d for d in one(n):n if iszero(n % d)]
 @testset "divisors(::$T)" for T in [Int16, Int32, Int64, BigInt]
     # 1 and 0 are handled specially
     @test divisors(one(T)) == divisors(-one(T)) == T[one(T)]
-    @test_throws ArgumentError @inferred(divisors(T(0)))
+    @test divisors(zero(T)) == T[]
 
     for n in 2:1000
         ds = divisors(T(n))
@@ -333,7 +340,7 @@ end
     # We just need to verify that the following cases are also handled correctly:
     @test divisors(factor(1)) == divisors(factor(-1)) == [1] # factorizations of 1 and -1
     @test divisors(factor(-56)) == divisors(factor(56)) == [1, 2, 4, 8, 7, 14, 28, 56] # factorizations of negative numbers
-    @test_throws ArgumentError @inferred(divisors(factor(0))) # factorizations of 0
+    @test isempty(divisors(factor(0)))
 end
 
 # check copy property for big primes relied upon in nextprime/prevprime

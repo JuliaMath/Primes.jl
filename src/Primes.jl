@@ -1,7 +1,7 @@
 # This file includes code that was formerly a part of Julia. License is MIT: http://julialang.org/license
 module Primes
 
-using Base.Iterators: repeated
+using Base.Iterators: repeated, rest
 
 import Base: iterate, eltype, IteratorSize, IteratorEltype
 using Base: BitSigned
@@ -591,7 +591,7 @@ given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
 when the factorization can be reused for other purposes.
 """
 function totient(f::Factorization{T}) where T <: Integer
-    if !isempty(f) && first(first(f)) == 0
+    if iszero(sign(f))
         throw(ArgumentError("ϕ(0) is not defined"))
     end
     result = one(T)
@@ -908,7 +908,7 @@ prevprimes(start::T, n::Integer) where {T<:Integer} =
     collect(T, Iterators.take(prevprimes(start), n))
 
 """
-    divisors(n::T) -> Vector{T}
+    divisors(n::Integer) -> Vector
 
 Return a vector with the positive divisors of `n`.
 
@@ -917,6 +917,8 @@ returns a vector of length (k₁ + 1)⋯(kₘ + 1) containing the divisors of `n
 lexicographic (rather than numerical) order.
 
 `divisors(-n)` is equivalent to `divisors(n)`.
+
+For convenience, `divisors(0)` returns `[]`.
 
 # Example
 
@@ -935,46 +937,49 @@ julia> divisors(60)
  15         # 5 * 3
  30         # 5 * 3 * 2
  60         # 5 * 3 * 2 * 2
+
+julia> divisors(-10)
+4-element Vector{Int64}:
+  1
+  2
+  5
+ 10
+
+julia> divisors(0)
+Int64[]
 ```
 """
-function divisors(n::T)::Vector{T} where {T<:Integer}
-    n::T = abs(n)
+function divisors(n::T) where {T<:Integer}
+    n = abs(n)
     if iszero(n)
-        throw(ArgumentError("divisors function is not defined for 0"))
+        return T[]
     elseif isone(n)
-        return T[n]
+        return [n]
     else
         return divisors(factor(n))
     end
 end
 
 """
-    divisors(f::Factorization{T}) -> Vector{T}
+    divisors(f::Factorization) -> Vector
 
 Return a vector with the positive divisors of the number whose factorization is `f`. 
 Divisors are sorted lexicographically, rather than numerically.
 """
-function divisors(f::Factorization{T})::Vector{T} where {T<:Integer}
-    factors = collect(f)
-
-    if isempty(factors) # n == 1
-        return T[one(T)] 
-    elseif iszero(first(first(factors))) # n == 0
-        throw(ArgumentError("divisors function is not defined for 0"))
-    elseif first(first(factors)) == -1 # n < 0
-        if length(factors) == 1 # n == -1
-            return T[one(T)]
-        else
-            deleteat!(factors, 1)
-        end
+function divisors(f::Factorization{T}) where {T<:Integer}
+    sgn = sign(f)
+    if iszero(sgn) # n == 0
+        return T[]
+    elseif isempty(f) || length(f) == 1 && sgn < 0 # n == 1 or n == -1
+        return [one(T)]
     end
 
-    i::Int = 1
-    m::Int = 1
-    divs = Vector{T}(undef, prod(x -> x.second + 1, factors))
+    i = m = 1
+    fs = rest(f, 1 + (sgn < 0))
+    divs = Vector{T}(undef, prod(x -> x.second + 1, fs))
     divs[i] = one(T)
 
-    for (p, k) in factors
+    for (p, k) in fs
         i = 1
         for _ in 1:k
             for j in i:(i+m-1)
