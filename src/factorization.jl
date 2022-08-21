@@ -56,9 +56,14 @@ function increment!(f::Factorization{T}, e::Int, p::Integer) where T
     end
     f
 end
-increment!(f::AbstractDict, e::Int, p::Integer) = (f[p] = get(f, p, 0) + e)
+function increment!(f::AbstractDict, e::Int, p::Integer)
+    f[p] = get(f, p, 0) + e
+    return f
+end
 
 Base.length(f::Factorization) = length(f.pe)
 
 Base.show(io::IO, ::MIME{Symbol("text/plain")}, f::Factorization) =
     join(io, isempty(f) ? "1" : [(e == 1 ? "$p" : "$p^$e") for (p,e) in f.pe], " * ")
+
+Base.sign(f::Factorization) = isempty(f.pe) ? one(keytype(f)) : sign(first(f.pe[1]))

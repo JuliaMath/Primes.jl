@@ -1,15 +1,14 @@
 # This file includes code that was formerly a part of Julia. License is MIT: http://julialang.org/license
-
 module Primes
 
-using Base.Iterators: repeated
+using Base.Iterators: repeated, rest
 
 import Base: iterate, eltype, IteratorSize, IteratorEltype
 using Base: BitSigned
 using Base.Checked: checked_neg
 using IntegerMathUtils
 
-export isprime, primes, primesmask, factor, ismersenneprime, isrieselprime,
+export isprime, primes, primesmask, factor, eachfactor, divisors, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
 include("factorization.jl")
@@ -38,7 +37,29 @@ function primes(lo::Int, hi::Int)
 end
 primes(n::Int) = primes(1, n)
 
-const PRIMES = primes(2^16)
+function _generate_min_factors(limit)
+    function min_factor(n)
+        n < 4 && return n
+        for i in 3:2:isqrt(n)
+           n%i == 0 && return i
+        end
+        return n
+    end
+    res = Int[]
+    for i in 3:2:limit
+        m = min_factor(i)
+        push!(res, m==i ? 1 : m)
+    end
+    return res
+end
+
+const N_SMALL_FACTORS = 2^16
+const _MIN_FACTOR = UInt8.(_generate_min_factors(N_SMALL_FACTORS))
+# _min_factor(n) = the minimum factor of n for odd n, if 1<n<N_SMALL_FACTORS
+function _min_factor(n::T) where T<:Integer
+    m = _MIN_FACTOR[n>>1]
+    return m==1 ? n : T(m)
+end
 
 """
     isprime(n::Integer) -> Bool
@@ -54,10 +75,14 @@ function isprime(n::Integer)
     # Small precomputed primes + Miller-Rabin for primality testing:
     #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
     #     https://github.com/JuliaLang/julia/issues/11594
-    for m in (2, 3, 5, 7, 11, 13, 17, 19, 23)
-        n % m == 0 && return n == m
+    n < 2 && return false
+    trailing_zeros(n) > 0 && return n==2
+    if n < N_SMALL_FACTORS
+        return _min_factor(n) == n
     end
-    n < 841 && return n > 1
+    for m in (3, 5, 7, 11, 13, 17, 19, 23)
+        n % m == 0 && return false
+    end
     s = trailing_zeros(n - 1)
     d = (n - 1) >>> s
     for a in witnesses(n)::Tuple{Vararg{Int}}
@@ -75,11 +100,9 @@ end
 
 """
     isprime(x::BigInt, [reps = 25]) -> Bool
-
 Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
 and `false` if `x` is composite (not prime). The false positive rate is about `0.25^reps`.
 `reps = 25` is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
-
 ```julia
 julia> isprime(big(3))
 true
@@ -134,34 +157,73 @@ witnesses(n::Integer) =
 isprime(n::UInt128) =
     n ≤ typemax(UInt64) ? isprime(UInt64(n)) : isprime(BigInt(n))
 isprime(n::Int128) = n < 2 ? false :
-    n ≤ typemax(Int64)  ? isprime(Int64(n))  : isprime(BigInt(n))
+    n ≤ typemax(UInt64)  ? isprime(UInt64(n))  : isprime(BigInt(n))
 
+struct FactorIterator{T<:Integer}
+    n::T
+    FactorIterator(n::T) where {T} = new{T}(n)
+end
 
-# Trial division of small (< 2^16) precomputed primes +
+IteratorSize(::Type{<:FactorIterator}) = Base.SizeUnknown()
+IteratorEltype(::Type{<:FactorIterator}) = Base.HasEltype()
+eltype(::Type{FactorIterator{T}}) where {T} = Tuple{T, Int}
+Base.isempty(f::FactorIterator) = f.n == 1
+
+# Iterates over the factors of n in an arbitrary order
+# Uses a variety of algorithms depending on the size of n to find a factor.
+#     https://en.algorithmica.org/hpc/algorithms/factorization
+# Cache of small factors for small numbers (n < 2^16)
+# Trial division of small (< 2^16) precomputed primes
 # Pollard rho's algorithm with Richard P. Brent optimizations
 #     https://en.wikipedia.org/wiki/Trial_division
 #     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
 #     http://maths-people.anu.edu.au/~brent/pub/pub051.html
 #
-function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
-    # check for special cases
-    if n < 0
-        h[-1] = 1
-        if isa(n, BitSigned) && n == typemin(T)
-            h[2] = 8 * sizeof(T) - 1
-            return h
-        else
-            return factor!(checked_neg(n), h)
-        end
-    elseif n == 1
-        return h
-    elseif n == 0 || isprime(n)
-        h[n] = 1
-        return h
-    end
 
-    local p::T
-    for p in PRIMES
+"""
+   eachfactor(n::Integer)->FactorIterator
+Returns a lazy iterator of factors of `n` in `(factor, multiplicity)` pairs.
+This can be very useful for computing multiplicitive functions since for small numbers (eg numbers with no factor `>2^16`),
+allocating the storage required for `factor(n)` can introduce significant overhead.
+"""
+eachfactor(n::Integer) = FactorIterator(n)
+
+# state[1] is the current number to factor (this decreases when factors are found)
+# state[2] is the prime to start trial division with.
+function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
+    n, p::T = state
+    if n <= p
+        n == 1 && return nothing
+        if n < 0
+            # if n is typemin, we can't negate it properly
+            # instead we set p=n which we can detect here.
+            if isa(n, BitSigned) && n == typemin(T)
+                if n != p
+                    return (T(-1), 1), (n, n)
+                end
+                return (T(2), 8 * sizeof(T) - 1), T.((1, 1))
+            end
+            return  (T(-1), 1), (-n, p)
+        end
+        n == 0 && return (T(n), 1), (T(1), p)
+    end
+    tz = trailing_zeros(n)
+    tz>0 && return (T(2), tz), (n >> tz, p)
+    if n <= N_SMALL_FACTORS
+        p = _min_factor(n)
+        num_p = 1
+        while true
+            n = div(n, p)
+            n == 1 && break
+            _min_factor(n) == p || break
+            num_p += 1
+        end
+        return (p, num_p), (n, p)
+    elseif p == 3 && isprime(n)
+        return (n, 1), (T(1), n)
+    end
+    for p in p:2:N_SMALL_FACTORS
+        _min_factor(p) == p || continue
         num_p = 0
         while true
             q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
@@ -169,13 +231,31 @@ function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
             num_p += 1
             n = q
         end
-        # h[p] += num_p (about 2x faster, but the speed only matters for small numbers)
-        num_p > 0 && increment!(h, num_p, p)
+        if num_p > 0
+            return (p, num_p), (n, p+2)
+        end
         p*p > n && break
     end
-    n == 1 && return h
-    isprime(n) && (h[n]=1; return h)
-    T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n) ? pollardfactors!(n, h) : pollardfactors!(widen(n), h)
+    # if n < 2^32, then if it wasn't prime, we would have found the factors by trial division
+    if n <= 2^32 || isprime(n)
+        return (n, 1), (T(1), n)
+    end
+    should_widen = T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n)
+    p = should_widen ? pollardfactor(n) : pollardfactor(widen(n))
+    num_p = 0
+    while true
+        q, r = divrem(n, p)
+        r != 0 && return (p, num_p), (n, p)
+        num_p += 1
+        n = q
+    end
+end
+
+function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
+    for (p, num_p) in eachfactor(n)
+        increment!(h, num_p, p)
+    end
+    return h
 end
 
 
@@ -291,15 +371,15 @@ julia> radical(2*2*3)
 6
 ```
 """
-radical(n) = prod(factor(Set, n))
+radical(n) = n==1 ? one(n) : prod(p for (p, num_p) in eachfactor(n))
 
-function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
+function pollardfactor(n::T) where {T<:Integer}
     while true
         c::T = rand(1:(n - 1))
         G::T = 1
-        r::K = 1
+        r::T = 1
         y::T = rand(0:(n - 1))
-        m::K = 100
+        m::T = 100
         ys::T = 0
         q::T = 1
         x::T = 0
@@ -312,7 +392,7 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
                 y = y^2 % n
                 y = (y + c) % n
             end
-            k::K = 0
+            k::T = 0
             G = 1
             while k < r && G == 1
                 ys = y
@@ -333,10 +413,13 @@ function pollardfactors!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Inte
             G = gcd(x > ys ? x - ys : ys - x, n)
         end
         if G != n
-            isprime(G) ? h[G] = get(h, G, 0) + 1 : pollardfactors!(G, h)
             G2 = div(n,G)
-            isprime(G2) ? h[G2] = get(h, G2, 0) + 1 : pollardfactors!(G2, h)
-            return h
+            f = min(G, G2)
+            _gcd = gcd(G, G2)
+            if _gcd != 1
+                f = _gcd
+            end
+            return isprime(f) ? f : pollardfactor(f)
         end
     end
 end
@@ -416,7 +499,7 @@ given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
 when the factorization can be reused for other purposes.
 """
 function totient(f::Factorization{T}) where T <: Integer
-    if !isempty(f) && first(first(f)) == 0
+    if iszero(sign(f))
         throw(ArgumentError("ϕ(0) is not defined"))
     end
     result = one(T)
@@ -435,8 +518,16 @@ positive integers less than or equal to ``n`` that are relatively prime to
 The totient function of `n` when `n` is negative is defined to be
 `totient(abs(n))`.
 """
-function totient(n::Integer)
-    totient(factor(abs(n)))
+function totient(n::T) where T<:Integer
+    n = abs(n)
+    if n == 0
+        throw(ArgumentError("ϕ(0) is not defined"))
+    end
+    result = one(T)
+    for (p, k) in eachfactor(n)
+        result *= p^(k-1) * (p - 1)
+    end
+    result
 end
 
 # add: checked add (when makes sense), result of same type as first argument
@@ -723,5 +814,91 @@ julia> prevprimes(10, 10)
 """
 prevprimes(start::T, n::Integer) where {T<:Integer} =
     collect(T, Iterators.take(prevprimes(start), n))
+
+"""
+    divisors(n::Integer) -> Vector
+
+Return a vector with the positive divisors of `n`.
+
+For a nonzero integer `n` with prime factorization `n = p₁^k₁ ⋯ pₘ^kₘ`, `divisors(n)`
+returns a vector of length (k₁ + 1)⋯(kₘ + 1) containing the divisors of `n` in
+lexicographic (rather than numerical) order.
+
+`divisors(-n)` is equivalent to `divisors(n)`.
+
+For convenience, `divisors(0)` returns `[]`.
+
+# Example
+
+```jldoctest
+julia> divisors(60)
+12-element Vector{Int64}:
+  1         # 1
+  2         # 2
+  4         # 2 * 2
+  3         # 3
+  6         # 3 * 2
+ 12         # 3 * 2 * 2
+  5         # 5
+ 10         # 5 * 2
+ 20         # 5 * 2 * 2
+ 15         # 5 * 3
+ 30         # 5 * 3 * 2
+ 60         # 5 * 3 * 2 * 2
+
+julia> divisors(-10)
+4-element Vector{Int64}:
+  1
+  2
+  5
+ 10
+
+julia> divisors(0)
+Int64[]
+```
+"""
+function divisors(n::T) where {T<:Integer}
+    n = abs(n)
+    if iszero(n)
+        return T[]
+    elseif isone(n)
+        return [n]
+    else
+        return divisors(factor(n))
+    end
+end
+
+"""
+    divisors(f::Factorization) -> Vector
+
+Return a vector with the positive divisors of the number whose factorization is `f`. 
+Divisors are sorted lexicographically, rather than numerically.
+"""
+function divisors(f::Factorization{T}) where {T<:Integer}
+    sgn = sign(f)
+    if iszero(sgn) # n == 0
+        return T[]
+    elseif isempty(f) || length(f) == 1 && sgn < 0 # n == 1 or n == -1
+        return [one(T)]
+    end
+
+    i = m = 1
+    fs = rest(f, 1 + (sgn < 0))
+    divs = Vector{T}(undef, prod(x -> x.second + 1, fs))
+    divs[i] = one(T)
+
+    for (p, k) in fs
+        i = 1
+        for _ in 1:k
+            for j in i:(i+m-1)
+                divs[j+m] = divs[j] * p
+            end
+            i += m
+        end
+        m += i - 1
+    end
+
+    return divs
+end
 
 end # module
