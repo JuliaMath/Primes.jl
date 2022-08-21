@@ -1,15 +1,14 @@
 # This file includes code that was formerly a part of Julia. License is MIT: http://julialang.org/license
-
 module Primes
 
-using Base.Iterators: repeated
+using Base.Iterators: repeated, rest
 
 import Base: iterate, eltype, IteratorSize, IteratorEltype
 using Base: BitSigned
 using Base.Checked: checked_neg
 using IntegerMathUtils
 
-export isprime, primes, primesmask, factor, eachfactor, ismersenneprime, isrieselprime,
+export isprime, primes, primesmask, factor, eachfactor, divisors, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
 include("factorization.jl")
@@ -592,7 +591,7 @@ given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
 when the factorization can be reused for other purposes.
 """
 function totient(f::Factorization{T}) where T <: Integer
-    if !isempty(f) && first(first(f)) == 0
+    if iszero(sign(f))
         throw(ArgumentError("ϕ(0) is not defined"))
     end
     result = one(T)
@@ -907,5 +906,91 @@ julia> prevprimes(10, 10)
 """
 prevprimes(start::T, n::Integer) where {T<:Integer} =
     collect(T, Iterators.take(prevprimes(start), n))
+
+"""
+    divisors(n::Integer) -> Vector
+
+Return a vector with the positive divisors of `n`.
+
+For a nonzero integer `n` with prime factorization `n = p₁^k₁ ⋯ pₘ^kₘ`, `divisors(n)`
+returns a vector of length (k₁ + 1)⋯(kₘ + 1) containing the divisors of `n` in
+lexicographic (rather than numerical) order.
+
+`divisors(-n)` is equivalent to `divisors(n)`.
+
+For convenience, `divisors(0)` returns `[]`.
+
+# Example
+
+```jldoctest
+julia> divisors(60)
+12-element Vector{Int64}:
+  1         # 1
+  2         # 2
+  4         # 2 * 2
+  3         # 3
+  6         # 3 * 2
+ 12         # 3 * 2 * 2
+  5         # 5
+ 10         # 5 * 2
+ 20         # 5 * 2 * 2
+ 15         # 5 * 3
+ 30         # 5 * 3 * 2
+ 60         # 5 * 3 * 2 * 2
+
+julia> divisors(-10)
+4-element Vector{Int64}:
+  1
+  2
+  5
+ 10
+
+julia> divisors(0)
+Int64[]
+```
+"""
+function divisors(n::T) where {T<:Integer}
+    n = abs(n)
+    if iszero(n)
+        return T[]
+    elseif isone(n)
+        return [n]
+    else
+        return divisors(factor(n))
+    end
+end
+
+"""
+    divisors(f::Factorization) -> Vector
+
+Return a vector with the positive divisors of the number whose factorization is `f`. 
+Divisors are sorted lexicographically, rather than numerically.
+"""
+function divisors(f::Factorization{T}) where {T<:Integer}
+    sgn = sign(f)
+    if iszero(sgn) # n == 0
+        return T[]
+    elseif isempty(f) || length(f) == 1 && sgn < 0 # n == 1 or n == -1
+        return [one(T)]
+    end
+
+    i = m = 1
+    fs = rest(f, 1 + (sgn < 0))
+    divs = Vector{T}(undef, prod(x -> x.second + 1, fs))
+    divs[i] = one(T)
+
+    for (p, k) in fs
+        i = 1
+        for _ in 1:k
+            for j in i:(i+m-1)
+                divs[j+m] = divs[j] * p
+            end
+            i += m
+        end
+        m += i - 1
+    end
+
+    return divs
+end
 
 end # module

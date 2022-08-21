@@ -236,6 +236,13 @@ end
 
 @test factor(1) == Dict{Int,Int}()
 
+# correctly return sign of factored numbers
+@test sign(factor(100)) == 1
+@test sign(factor(1)) == 1
+@test sign(factor(0)) == 0
+@test sign(factor(-1)) == -1
+@test sign(factor(-100)) == -1
+
 # factor returns a sorted dict
 @test all([issorted(collect(factor(rand(Int)))) for x in 1:100])
 
@@ -311,6 +318,29 @@ end
         # can use directly with Factorization
         @test totient(i) == totient(factor(i))
     end
+end
+
+# brute-force way to get divisors. Same elements as divisors(n), but order may differ.
+divisors_brute_force(n) = [d for d in one(n):n if iszero(n % d)]
+
+@testset "divisors(::$T)" for T in [Int16, Int32, Int64, BigInt]
+    # 1 and 0 are handled specially
+    @test divisors(one(T)) == divisors(-one(T)) == T[one(T)]
+    @test divisors(zero(T)) == T[]
+
+    for n in 2:1000
+        ds = divisors(T(n))
+        @test ds == divisors(-T(n)) 
+        @test sort!(ds) == divisors_brute_force(T(n))
+    end
+end
+
+@testset "divisors(::Factorization)" begin
+    # divisors(n) calls divisors(factor(abs(n))), so the previous testset covers most cases.
+    # We just need to verify that the following cases are also handled correctly:
+    @test divisors(factor(1)) == divisors(factor(-1)) == [1] # factorizations of 1 and -1
+    @test divisors(factor(-56)) == divisors(factor(56)) == [1, 2, 4, 8, 7, 14, 28, 56] # factorizations of negative numbers
+    @test isempty(divisors(factor(0)))
 end
 
 # check copy property for big primes relied upon in nextprime/prevprime
