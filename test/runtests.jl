@@ -289,6 +289,17 @@ for T = (Int, UInt, BigInt)
     @test issorted(f.pe)
 end
 
+d = Dict(:a=>1,:b=>2)
+f = Factorization(d)
+@test f == d == Dict(f) == convert(Factorization, d)
+@test collect(f) == sort!(collect(d)) # test start/next/done
+@test length(f) == length(d)
+@test get(f, :c, nothing) === nothing
+@test f[:c] == 0
+@test f[:a] == 1
+f[:c] = 1
+@test get(f, :c, 0) == 1
+
 # dumb implementation of Euler totient for correctness tests
 ϕ(n) = count(m -> gcd(n, m) == 1, 1:n)
 

@@ -966,7 +966,7 @@ end
 Return a vector with the positive divisors of the number whose factorization is `f`. 
 Divisors are sorted lexicographically, rather than numerically.
 """
-function divisors(f::Factorization{T}) where {T<:Integer}
+function divisors(f::Factorization{T}) where T
     sgn = sign(f)
     if iszero(sgn) # n == 0
         return T[]
