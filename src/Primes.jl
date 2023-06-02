@@ -164,30 +164,67 @@ true
 ```
 """
 function isprime(n::Integer)
-    # Small precomputed primes + Miller-Rabin for primality testing:
-    #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
-    #     https://github.com/JuliaLang/julia/issues/11594
-    n < 2 && return false
-    trailing_zeros(n) > 0 && return n==2
+    n <2 && return false
+    n ≤ typemax(Int64) && return isprime(Int64(n))
+    return isprime(BigInt(n))
+end
+
+function isprime(n::T) where {T<:Signed}
+    # Small precomputed primes + Baillie–PSW for primality testing:
+    # https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test
+    # https://mathworld.wolfram.com/LucasSequence.html
     if n < N_SMALL_FACTORS
+        n < 2 && return false
         return _min_factor(n) == n
     end
+    iseven(n) && return false
     for m in (3, 5, 7, 11, 13, 17, 19, 23)
         n % m == 0 && return false
     end
+    # miller-raben
     s = trailing_zeros(n - 1)
     d = (n - 1) >>> s
-    for a in witnesses(n)::Tuple{Vararg{Int}}
-        x = powermod(a, d, n)
-        x == 1 && continue
+    x::T = powermod(2, d, n)
+    if x != 1
         t = s
         while x != n - 1
             (t -= 1) ≤ 0 && return false
-            x = oftype(n, widemul(x, x) % n)
+            x = widemul(x, x) % n
             x == 1 && return false
         end
     end
-    return true
+
+    isqrt(n)^2 == n && return false
+    # find Lucas test params
+    D::T = 5
+    for (s, d) in zip(Iterators.cycle((1,-1)), 5:2:n)
+        D = s*d
+        kronecker(D, n) == -1 && break
+    end
+    # Lucas test with P=1
+    Q::T = (1-D) >> 2
+    U::T, V::T, Qk::T = 1, 1, Q #assert types for conversion
+    k::T = (n + 1)# >> trailing_zeros(n + 1)
+    b = Base.top_set_bit(k)
+    while b > 0
+        U = widemul(U, V) % n
+        V = (widemul(V, V) - Qk - Qk) % n
+        Qk = widemul(Qk, Qk) % n
+        b -= 1
+        if isodd(k >> (b - 1))
+            Qk = widemul(Qk, Q) % n
+            Utmp, Vtmp = widen(U) + V, V + widemul(U, D)
+            if isodd(Utmp)
+                Utmp += n
+            end
+            if isodd(Vtmp)
+                Vtmp += n
+            end
+            U = (Utmp >> 1) % n
+            V = (Vtmp >> 1) % n
+        end
+    end
+    return U == 0
 end
 
 """
@@ -200,56 +237,7 @@ julia> isprime(big(3))
 true
 ```
 """
-isprime(x::BigInt, reps=25) = is_probably_prime(x; reps=reps)
-
-# Miller-Rabin witness choices based on:
-#     http://mathoverflow.net/questions/101922/smallest-collection-of-bases-for-prime-testing-of-64-bit-numbers
-#     http://primes.utm.edu/prove/merged.html
-#     http://miller-rabin.appspot.com
-#     https://github.com/JuliaLang/julia/issues/11594
-#     Forišek and Jančina, "Fast Primality Testing for Integers That Fit into a Machine Word", 2015
-#         (in particular, see function FJ32_256, from which the hash and bases were taken)
-const bases = UInt16[
-    15591,  2018,   166,  7429,  8064, 16045, 10503,  4399,  1949,  1295,  2776,  3620,
-      560,  3128,  5212,  2657,  2300,  2021,  4652,  1471,  9336,  4018,  2398, 20462,
-    10277,  8028,  2213,  6219,   620,  3763,  4852,  5012,  3185,  1333,  6227,  5298,
-     1074,  2391,  5113,  7061,   803,  1269,  3875,   422,   751,   580,  4729, 10239,
-      746,  2951,   556,  2206,  3778,   481,  1522,  3476,   481,  2487,  3266,  5633,
-      488,  3373,  6441,  3344,    17, 15105,  1490,  4154,  2036,  1882,  1813,   467,
-     3307, 14042,  6371,   658,  1005,   903,   737,  1887,  7447,  1888,  2848,  1784,
-     7559,  3400,   951, 13969,  4304,   177,    41, 19875,  3110, 13221,  8726,   571,
-     7043,  6943,  1199,   352,  6435,   165,  1169,  3315,   978,   233,  3003,  2562,
-     2994, 10587, 10030,  2377,  1902,  5354,  4447,  1555,   263, 27027,  2283,   305,
-      669,  1912,   601,  6186,   429,  1930, 14873,  1784,  1661,   524,  3577,   236,
-     2360,  6146,  2850, 55637,  1753,  4178,  8466,   222,  2579,  2743,  2031,  2226,
-     2276,   374,  2132,   813, 23788,  1610,  4422,  5159,  1725,  3597,  3366, 14336,
-      579,   165,  1375, 10018, 12616,  9816,  1371,   536,  1867, 10864,   857,  2206,
-     5788,   434,  8085, 17618,   727,  3639,  1595,  4944,  2129,  2029,  8195,  8344,
-     6232,  9183,  8126,  1870,  3296,  7455,  8947, 25017,   541, 19115,   368,   566,
-     5674,   411,   522,  1027,  8215,  2050,  6544, 10049,   614,   774,  2333,  3007,
-    35201,  4706,  1152,  1785,  1028,  1540,  3743,   493,  4474,  2521, 26845,  8354,
-      864, 18915,  5465,  2447,    42,  4511,  1660,   166,  1249,  6259,  2553,   304,
-      272,  7286,    73,  6554,   899,  2816,  5197, 13330,  7054,  2818,  3199,   811,
-      922,   350,  7514,  4452,  3449,  2663,  4708,   418,  1621,  1171,  3471,    88,
-    11345,   412,  1559,   194
-]
-
-function _witnesses(n::UInt64)
-    i = xor((n >> 16), n) * 0x45d9f3b
-    i = xor((i >> 16), i) * 0x45d9f3b
-    i = xor((i >> 16), i) & 255 + 1
-    @inbounds return (Int(bases[i]),)
-end
-witnesses(n::Integer) =
-        n < 4294967296      ? _witnesses(UInt64(n)) :
-        n < 2152302898747   ? (2, 3, 5, 7, 11) :
-        n < 3474749660383   ? (2, 3, 5, 7, 11, 13) :
-                              (2, 325, 9375, 28178, 450775, 9780504, 1795265022)
-
-isprime(n::UInt128) =
-    n ≤ typemax(UInt64) ? isprime(UInt64(n)) : isprime(BigInt(n))
-isprime(n::Int128) = n < 2 ? false :
-    n ≤ typemax(UInt64)  ? isprime(UInt64(n))  : isprime(BigInt(n))
+isprime(x::BigInt, reps=25) = x>1 && is_probably_prime(x; reps=reps)
 
 struct FactorIterator{T<:Integer}
     n::T
@@ -963,7 +951,7 @@ end
 """
     divisors(f::Factorization) -> Vector
 
-Return a vector with the positive divisors of the number whose factorization is `f`. 
+Return a vector with the positive divisors of the number whose factorization is `f`.
 Divisors are sorted lexicographically, rather than numerically.
 """
 function divisors(f::Factorization{T}) where {T<:Integer}
