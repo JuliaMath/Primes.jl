@@ -179,11 +179,11 @@ end
 #     http://ntheory.org/pseudoprimes.html
 #     http://ntheory.org/pseudoprimes.html
 function isprime(n::Int64)
+    iseven(n) && return n == 2
     if n < N_SMALL_FACTORS
         n < 2 && return false
         return _min_factor(n) == n
     end
-    iseven(n) && return n == 2
     for m in (3, 5, 7, 11, 13, 17, 19, 23)
         n % m == 0 && return false
     end
