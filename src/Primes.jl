@@ -164,27 +164,72 @@ true
 ```
 """
 function isprime(n::Integer)
-    n <2 && return false
     n ≤ typemax(Int64) && return isprime(Int64(n))
     return isprime(BigInt(n))
 end
 
-function isprime(n::T) where {T<:Signed}
-    # Small precomputed primes + Baillie–PSW for primality testing:
-    # https://en.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test
-    # https://mathworld.wolfram.com/LucasSequence.html
+# Uses a polyalgorithm depending on the size of n.
+# n < 2^16: lookup table (we already have this table because it helps factor also)
+# n < 2^32: trial division + Miller-Rabbin test with base chosen by
+#         Forišek and Jančina, "Fast Primality Testing for Integers That Fit into a Machine Word", 2015
+#         (in particular, see function FJ32_256, from which the hash and bases were taken)
+# n < 2^64: Baillie–PSW for primality testing.
+#         Specifically, this consists of a Miller-Rabbin test and a Lucas test
+# For more background on fast primality testing, see:
+#     http://ntheory.org/pseudoprimes.html
+#     http://ntheory.org/pseudoprimes.html
+function isprime(n::Int64)
     if n < N_SMALL_FACTORS
         n < 2 && return false
         return _min_factor(n) == n
     end
-    iseven(n) && return false
+    iseven(n) && return n == 2
     for m in (3, 5, 7, 11, 13, 17, 19, 23)
         n % m == 0 && return false
     end
-    # miller-raben
+    if n<2^32
+        return miller_rabbin_test(_witnesses(UInt64(n)), n)
+    end
+    miller_rabbin_test(2, n) || return false
+    return lucas_test(widen(n))
+end
+
+const bases = UInt16[
+    15591,  2018,   166,  7429,  8064, 16045, 10503,  4399,  1949,  1295,  2776,  3620,
+      560,  3128,  5212,  2657,  2300,  2021,  4652,  1471,  9336,  4018,  2398, 20462,
+    10277,  8028,  2213,  6219,   620,  3763,  4852,  5012,  3185,  1333,  6227,  5298,
+     1074,  2391,  5113,  7061,   803,  1269,  3875,   422,   751,   580,  4729, 10239,
+      746,  2951,   556,  2206,  3778,   481,  1522,  3476,   481,  2487,  3266,  5633,
+      488,  3373,  6441,  3344,    17, 15105,  1490,  4154,  2036,  1882,  1813,   467,
+     3307, 14042,  6371,   658,  1005,   903,   737,  1887,  7447,  1888,  2848,  1784,
+     7559,  3400,   951, 13969,  4304,   177,    41, 19875,  3110, 13221,  8726,   571,
+     7043,  6943,  1199,   352,  6435,   165,  1169,  3315,   978,   233,  3003,  2562,
+     2994, 10587, 10030,  2377,  1902,  5354,  4447,  1555,   263, 27027,  2283,   305,
+      669,  1912,   601,  6186,   429,  1930, 14873,  1784,  1661,   524,  3577,   236,
+     2360,  6146,  2850, 55637,  1753,  4178,  8466,   222,  2579,  2743,  2031,  2226,
+     2276,   374,  2132,   813, 23788,  1610,  4422,  5159,  1725,  3597,  3366, 14336,
+      579,   165,  1375, 10018, 12616,  9816,  1371,   536,  1867, 10864,   857,  2206,
+     5788,   434,  8085, 17618,   727,  3639,  1595,  4944,  2129,  2029,  8195,  8344,
+     6232,  9183,  8126,  1870,  3296,  7455,  8947, 25017,   541, 19115,   368,   566,
+     5674,   411,   522,  1027,  8215,  2050,  6544, 10049,   614,   774,  2333,  3007,
+    35201,  4706,  1152,  1785,  1028,  1540,  3743,   493,  4474,  2521, 26845,  8354,
+      864, 18915,  5465,  2447,    42,  4511,  1660,   166,  1249,  6259,  2553,   304,
+      272,  7286,    73,  6554,   899,  2816,  5197, 13330,  7054,  2818,  3199,   811,
+      922,   350,  7514,  4452,  3449,  2663,  4708,   418,  1621,  1171,  3471,    88,
+    11345,   412,  1559,   194
+]
+
+function _witnesses(n::UInt64)
+    i = xor((n >> 16), n) * 0x45d9f3b
+    i = xor((i >> 16), i) * 0x45d9f3b
+    i = xor((i >> 16), i) & 255 + 1
+    @inbounds return Int(bases[i])
+end
+
+function miller_rabbin_test(a, n::T) where T<:Signed
     s = trailing_zeros(n - 1)
     d = (n - 1) >>> s
-    x::T = powermod(2, d, n)
+    x::T = powermod(a, d, n)
     if x != 1
         t = s
         while x != n - 1
@@ -193,40 +238,52 @@ function isprime(n::T) where {T<:Signed}
             x == 1 && return false
         end
     end
+    return true
+end
 
-    isqrt(n)^2 == n && return false
+function lucas_test(n::T) where T<:Signed
+    s = isqrt(n)
+    @assert s <= typemax(T) #to prevent overflow
+    s^2 == n && return false
     # find Lucas test params
     D::T = 5
     for (s, d) in zip(Iterators.cycle((1,-1)), 5:2:n)
         D = s*d
-        kronecker(D, n) == -1 && break
+        k = kronecker(D, n)
+        k != 1 && break
     end
+    k == 0 && return false
     # Lucas test with P=1
     Q::T = (1-D) >> 2
-    U::T, V::T, Qk::T = 1, 1, Q #assert types for conversion
-    k::T = (n + 1)# >> trailing_zeros(n + 1)
-    b = Base.top_set_bit(k)
-    while b > 0
-        U = widemul(U, V) % n
-        V = (widemul(V, V) - Qk - Qk) % n
-        Qk = widemul(Qk, Qk) % n
-        b -= 1
-        if isodd(k >> (b - 1))
-            Qk = widemul(Qk, Q) % n
-            Utmp, Vtmp = widen(U) + V, V + widemul(U, D)
-            if isodd(Utmp)
-                Utmp += n
-            end
-            if isodd(Vtmp)
-                Vtmp += n
-            end
-            U = (Utmp >> 1) % n
-            V = (Vtmp >> 1) % n
+    U::T, V::T, Qk::T = 1, 1, Q
+    k::T = (n + 1)
+    trail = trailing_zeros(k)
+    k >>= trail
+    for b in digits(k, base=2)[end-1:-1:1]
+        U = mod(U*V, n)
+        V = mod(V * V - Qk - Qk, n)
+        Qk = mod(Qk*Qk, n)
+        if b == 1
+            Qk = mod(Qk*Q, n)
+            U, V = U + V, V + U*D
+            # adding n makes them even 
+            # so we can divide by 2 without causing problems
+            isodd(U) && (U += n)
+            isodd(V) && (V += n)
+            U = mod(U >> 1, n)
+            V = mod(V >> 1, n)
         end
     end
-    return U == 0
+    if U in 0
+        return true
+    end
+    for _ in 1:trail
+        V == 0 && return true
+        V = mod(V*V - Qk - Qk, n)
+        Qk = mod(Qk * Qk, n)
+    end
+    return false
 end
-
 """
     isprime(x::BigInt, [reps = 25]) -> Bool
 Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
