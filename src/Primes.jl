@@ -260,7 +260,7 @@ function lucas_test(n::T) where T<:Signed
     trail = trailing_zeros(k)
     k >>= trail
     # get digits 1 at a time since digits allocates
-    for b in ndigits(p,base=2)-2:-1:0
+    for b in ndigits(k,base=2)-2:-1:0
         U = mod(U*V, n)
         V = mod(V * V - Qk - Qk, n)
         Qk = mod(Qk*Qk, n)
