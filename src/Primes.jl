@@ -259,11 +259,12 @@ function lucas_test(n::T) where T<:Signed
     k::T = (n + 1)
     trail = trailing_zeros(k)
     k >>= trail
-    for b in digits(k, base=2)[end-1:-1:1]
+    # get digits 1 at a time since digits allocates
+    for b in ndigits(p,base=2)-2:-1:0
         U = mod(U*V, n)
         V = mod(V * V - Qk - Qk, n)
         Qk = mod(Qk*Qk, n)
-        if b == 1
+        if isodd(k>>b) == 1
             Qk = mod(Qk*Q, n)
             U, V = U + V, V + U*D
             # adding n makes them even 
