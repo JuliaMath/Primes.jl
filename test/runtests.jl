@@ -116,7 +116,7 @@ for T in [Int, BigInt], n = [1:1000;1000000]
     f = factor(n)
     @test n == prod(T[p^k for (p, k) = f])
     prime = n != 1 && length(f) == 1 && get(f, n, 0) == 1
-    @test isprime(n) == prime
+    @test isprime(n) == prime || n
 
     s = primesmask(n)
     for k = 1:n
