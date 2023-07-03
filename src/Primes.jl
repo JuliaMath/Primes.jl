@@ -72,51 +72,36 @@ true
 ```
 """
 function isprime(n::Integer)
-    # Small precomputed primes + Miller-Rabin for primality testing:
-    #     https://en.wikipedia.org/wiki/Miller–Rabin_primality_test
-    #     https://github.com/JuliaLang/julia/issues/11594
-    n < 2 && return false
-    trailing_zeros(n) > 0 && return n==2
+    n ≤ typemax(Int64) && return isprime(Int64(n))
+    return isprime(BigInt(n))
+end
+
+# Uses a polyalgorithm depending on the size of n.
+# n < 2^16: lookup table (we already have this table because it helps factor also)
+# n < 2^32: trial division + Miller-Rabbin test with base chosen by
+#         Forišek and Jančina, "Fast Primality Testing for Integers That Fit into a Machine Word", 2015
+#         (in particular, see function FJ32_256, from which the hash and bases were taken)
+# n < 2^64: Baillie–PSW for primality testing.
+#         Specifically, this consists of a Miller-Rabbin test and a Lucas test
+# For more background on fast primality testing, see:
+#     http://ntheory.org/pseudoprimes.html
+#     http://ntheory.org/pseudoprimes.html
+function isprime(n::Int64)
+    iseven(n) && return n == 2
     if n < N_SMALL_FACTORS
+        n < 2 && return false
         return _min_factor(n) == n
     end
     for m in (3, 5, 7, 11, 13, 17, 19, 23)
         n % m == 0 && return false
     end
-    s = trailing_zeros(n - 1)
-    d = (n - 1) >>> s
-    for a in witnesses(n)::Tuple{Vararg{Int}}
-        x = powermod(a, d, n)
-        x == 1 && continue
-        t = s
-        while x != n - 1
-            (t -= 1) ≤ 0 && return false
-            x = oftype(n, widemul(x, x) % n)
-            x == 1 && return false
-        end
+    if n<2^32
+        return miller_rabbin_test(_witnesses(UInt64(n)), n)
     end
-    return true
+    miller_rabbin_test(2, n) || return false
+    return lucas_test(widen(n))
 end
 
-"""
-    isprime(x::BigInt, [reps = 25]) -> Bool
-Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
-and `false` if `x` is composite (not prime). The false positive rate is about `0.25^reps`.
-`reps = 25` is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
-```julia
-julia> isprime(big(3))
-true
-```
-"""
-isprime(x::BigInt, reps=25) = is_probably_prime(x; reps=reps)
-
-# Miller-Rabin witness choices based on:
-#     http://mathoverflow.net/questions/101922/smallest-collection-of-bases-for-prime-testing-of-64-bit-numbers
-#     http://primes.utm.edu/prove/merged.html
-#     http://miller-rabin.appspot.com
-#     https://github.com/JuliaLang/julia/issues/11594
-#     Forišek and Jančina, "Fast Primality Testing for Integers That Fit into a Machine Word", 2015
-#         (in particular, see function FJ32_256, from which the hash and bases were taken)
 const bases = UInt16[
     15591,  2018,   166,  7429,  8064, 16045, 10503,  4399,  1949,  1295,  2776,  3620,
       560,  3128,  5212,  2657,  2300,  2021,  4652,  1471,  9336,  4018,  2398, 20462,
@@ -146,18 +131,79 @@ function _witnesses(n::UInt64)
     i = xor((n >> 16), n) * 0x45d9f3b
     i = xor((i >> 16), i) * 0x45d9f3b
     i = xor((i >> 16), i) & 255 + 1
-    @inbounds return (Int(bases[i]),)
+    @inbounds return Int(bases[i])
 end
-witnesses(n::Integer) =
-        n < 4294967296      ? _witnesses(UInt64(n)) :
-        n < 2152302898747   ? (2, 3, 5, 7, 11) :
-        n < 3474749660383   ? (2, 3, 5, 7, 11, 13) :
-                              (2, 325, 9375, 28178, 450775, 9780504, 1795265022)
 
-isprime(n::UInt128) =
-    n ≤ typemax(UInt64) ? isprime(UInt64(n)) : isprime(BigInt(n))
-isprime(n::Int128) = n < 2 ? false :
-    n ≤ typemax(UInt64)  ? isprime(UInt64(n))  : isprime(BigInt(n))
+function miller_rabbin_test(a, n::T) where T<:Signed
+    s = trailing_zeros(n - 1)
+    d = (n - 1) >>> s
+    x::T = powermod(a, d, n)
+    if x != 1
+        t = s
+        while x != n - 1
+            (t -= 1) ≤ 0 && return false
+            x = widemul(x, x) % n
+            x == 1 && return false
+        end
+    end
+    return true
+end
+
+function lucas_test(n::T) where T<:Signed
+    s = isqrt(n)
+    @assert s <= typemax(T) #to prevent overflow
+    s^2 == n && return false
+    # find Lucas test params
+    D::T = 5
+    for (s, d) in zip(Iterators.cycle((1,-1)), 5:2:n)
+        D = s*d
+        k = kronecker(D, n)
+        k != 1 && break
+    end
+    k == 0 && return false
+    # Lucas test with P=1
+    Q::T = (1-D) >> 2
+    U::T, V::T, Qk::T = 1, 1, Q
+    k::T = (n + 1)
+    trail = trailing_zeros(k)
+    k >>= trail
+    # get digits 1 at a time since digits allocates
+    for b in ndigits(k,base=2)-2:-1:0
+        U = mod(U*V, n)
+        V = mod(V * V - Qk - Qk, n)
+        Qk = mod(Qk*Qk, n)
+        if isodd(k>>b) == 1
+            Qk = mod(Qk*Q, n)
+            U, V = U + V, V + U*D
+            # adding n makes them even 
+            # so we can divide by 2 without causing problems
+            isodd(U) && (U += n)
+            isodd(V) && (V += n)
+            U = mod(U >> 1, n)
+            V = mod(V >> 1, n)
+        end
+    end
+    if U in 0
+        return true
+    end
+    for _ in 1:trail
+        V == 0 && return true
+        V = mod(V*V - Qk - Qk, n)
+        Qk = mod(Qk * Qk, n)
+    end
+    return false
+end
+"""
+    isprime(x::BigInt, [reps = 25]) -> Bool
+Probabilistic primality test. Returns `true` if `x` is prime with high probability (pseudoprime);
+and `false` if `x` is composite (not prime). The false positive rate is about `0.25^reps`.
+`reps = 25` is considered safe for cryptographic applications (Knuth, Seminumerical Algorithms).
+```julia
+julia> isprime(big(3))
+true
+```
+"""
+isprime(x::BigInt, reps=25) = x>1 && is_probably_prime(x; reps=reps)
 
 struct FactorIterator{T<:Integer}
     n::T
@@ -871,10 +917,10 @@ end
 """
     divisors(f::Factorization) -> Vector
 
-Return a vector with the positive divisors of the number whose factorization is `f`. 
+Return a vector with the positive divisors of the number whose factorization is `f`.
 Divisors are sorted lexicographically, rather than numerically.
 """
-function divisors(f::Factorization{T}) where {T<:Integer}
+function divisors(f::Factorization{T}) where T
     sgn = sign(f)
     if iszero(sgn) # n == 0
         return T[]
