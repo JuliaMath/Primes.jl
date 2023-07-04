@@ -21,10 +21,9 @@ end
 # Since a `BitVector` stores `UInt64` chunks, each prime has the same effect every `p` chunks.
 # Since prime `p` modifies `1/p` bits, small primes<64 modify more than 1 bit per UInt64
 # which makes it worth it to sieve them 1 chunk at a time.
-const N_PRESIEVE_PRIMES = 5
 const PRESIEVE_PRIMES = (7,11,13,17,19)
-const PRESIEVE_CHUNKS = Vector{Vector{UInt64}}(undef, N_PRESIEVE_PRIMES)
-for (i,p) in zip(1:N_PRESIEVE_PRIMES,PRESIEVE_PRIMES)
+const PRESIEVE_CHUNKS = Vector{Vector{UInt64}}(undef, length(PRESIEVE_PRIMES))
+for (i,p) in enumerate(PRESIEVE_PRIMES)
    PRESIEVE_CHUNKS[i] = BitVector([wheel_prime(x)%p!=0 for x in 1:(64*p)]).chunks
 end
 
@@ -36,8 +35,8 @@ function _primesmask(limit::Int)
     # First sieve small primes 64 bits at a time.
     # Loop order here is slightly more computation, but reduces passes over memory
     @inbounds for i in eachindex(sieve.chunks)
-        presieve_mask = 0-UInt64(1)
-        for (j,p) in zip(1:N_PRESIEVE_PRIMES,PRESIEVE_PRIMES)
+        presieve_mask = ~UInt64(0)
+        for (j,p) in enumerate(PRESIEVE_PRIMES)
              presieve_mask &= PRESIEVE_CHUNKS[j][(i-1) % p + 1]
         end
         sieve.chunks[i] = presieve_mask
@@ -47,7 +46,7 @@ function _primesmask(limit::Int)
     sieve.chunks[1] |= 0x1f
 
     # Then sieve remaining primes 1 match at a time.
-    @inbounds for i = (N_PRESIEVE_PRIMES+1):wheel_index(isqrt(limit))
+    @inbounds for i = (length(PRESIEVE_PRIMES)+1):wheel_index(isqrt(limit))
         if sieve[i]
             p = wheel_prime(i)
             q = p^2
