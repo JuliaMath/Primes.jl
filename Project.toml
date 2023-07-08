@@ -1,6 +1,6 @@
 name = "Primes"
 uuid = "27ebfcd6-29c5-5fa9-bf4b-fb8fc14df3ae"
-version = "0.5.3"
+version = "0.5.4"
 
 [deps]
 IntegerMathUtils = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
