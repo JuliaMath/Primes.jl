@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   id="svg5"
+   version="1.1"
+   viewBox="0 0 44.089279 44.005573"
+   height="44.005573"
+   width="44.089279"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview7"
+     pagecolor="#ffffff"
+     bordercolor="#111111"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="1"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="px"
+     showgrid="true"
+     inkscape:zoom="14.433333"
+     inkscape:cx="54.387991"
+     inkscape:cy="52.863741"
+     inkscape:window-width="1920"
+     inkscape:window-height="1043"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="layer1">
+    <inkscape:grid
+       type="xygrid"
+       id="grid1412" />
+  </sodipodi:namedview>
+  <defs
+     id="defs2">
+    <linearGradient
+       id="linearGradient2098"
+       inkscape:swatch="solid">
+      <stop
+         style="stop-color:#ff2a2a;stop-opacity:1;"
+         offset="0"
+         id="stop2096" />
+    </linearGradient>
+    <filter
+       inkscape:collect="always"
+       style="color-interpolation-filters:sRGB"
+       id="filter12548"
+       x="-0.013715"
+       y="-0.0011302326"
+       width="1.0274301"
+       height="1.0138884">
+      <feGaussianBlur
+         inkscape:collect="always"
+         stdDeviation="0.02025"
+         id="feGaussianBlur12550" />
+    </filter>
+    <filter
+       inkscape:collect="always"
+       style="color-interpolation-filters:sRGB"
+       id="filter13315"
+       x="-0.0003876923"
+       y="-0.00063000002"
+       width="1.0007755"
+       height="1.00126">
+      <feGaussianBlur
+         inkscape:collect="always"
+         stdDeviation="0.0063"
+         id="feGaussianBlur13317" />
+    </filter>
+    <filter
+       inkscape:collect="always"
+       style="color-interpolation-filters:sRGB"
+       id="filter13319"
+       x="-0.0055800001"
+       y="-0.0055800001"
+       width="1.01116"
+       height="1.01116">
+      <feGaussianBlur
+         inkscape:collect="always"
+         stdDeviation="0.0093"
+         id="feGaussianBlur13321" />
+    </filter>
+    <filter
+       inkscape:collect="always"
+       style="color-interpolation-filters:sRGB"
+       id="filter13323"
+       x="-0.0046799998"
+       y="-0.0046799998"
+       width="1.00936"
+       height="1.00936">
+      <feGaussianBlur
+         inkscape:collect="always"
+         stdDeviation="0.0078"
+         id="feGaussianBlur13325" />
+    </filter>
+  </defs>
+  <g
+     inkscape:label="Слой 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(-37.95536,-38.050999)">
+    <path
+       style="opacity:1;mix-blend-mode:normal;fill:#ff2a2a;fill-opacity:0;stroke:#000000;stroke-opacity:1;filter:url(#filter12548)"
+       d="m 60,60 v -5 h 5 V 65 H 55 V 50 H 70 V 70 H 50 V 45 H 75 V 75 H 45 V 40 H 80 V 80 H 40 V 37"
+       id="path1527"
+       sodipodi:nodetypes="cccccccccccccccccc" />
+    <circle
+       style="fill:#9558b2;fill-opacity:1;fill-rule:evenodd"
+       id="circle5668"
+       cx="70"
+       cy="50"
+       r="2" />
+    <circle
+       style="fill:#9558b2;fill-opacity:1;fill-rule:evenodd"
+       id="circle5670"
+       cx="70"
+       cy="70"
+       r="2" />
+    <circle
+       style="fill:#9558b2;fill-opacity:1;fill-rule:evenodd"
+       id="circle5678"
+       cx="75"
+       cy="45"
+       r="2" />
+    <circle
+       style="fill:#9558b2;fill-opacity:1;fill-rule:evenodd"
+       id="circle5688"
+       cx="60"
+       cy="40"
+       r="2" />
+    <g
+       id="g12570"
+       style="filter:url(#filter13315)">
+      <circle
+         style="fill:#cb3c33;fill-opacity:1;fill-rule:evenodd"
+         id="circle5646"
+         cx="65"
+         cy="55"
+         r="2" />
+      <circle
+         style="fill:#cb3c33;fill-opacity:1;fill-rule:evenodd"
+         id="circle5662"
+         cx="65"
+         cy="65"
+         r="2" />
+      <circle
+         style="fill:#cb3c33;fill-opacity:1;fill-rule:evenodd"
+         id="circle5664"
+         cx="55"
+         cy="65"
+         r="2" />
+      <circle
+         style="fill:#cb3c33;fill-opacity:1;fill-rule:evenodd"
+         id="circle5674"
+         cx="50"
+         cy="60"
+         r="2" />
+      <circle
+         style="fill:#cb3c33;fill-opacity:1;fill-rule:evenodd"
+         id="circle5682"
+         cx="55"
+         cy="75"
+         r="2" />
+      <circle
+         style="fill:#cb3c33;fill-opacity:1;fill-rule:evenodd"
+         id="circle5684"
+         cx="45"
+         cy="75"
+         r="2" />
+      <circle
+         style="fill:#cb3c33;fill-opacity:1;fill-rule:evenodd"
+         id="circle5692"
+         cx="80"
+         cy="60"
+         r="2" />
+    </g>
+    <circle
+       style="fill:#9558b2;fill-opacity:1;fill-rule:evenodd"
+       id="circle5696"
+       cx="50"
+       cy="80"
+       r="2" />
+    <circle
+       style="mix-blend-mode:normal;fill:#4063d8;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13323)"
+       id="circle5672"
+       cx="60"
+       cy="70"
+       r="2" />
+    <circle
+       style="mix-blend-mode:normal;fill:#4063d8;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13323)"
+       id="circle5676"
+       cx="65"
+       cy="45"
+       r="2" />
+    <g
+       id="g12553"
+       style="mix-blend-mode:normal;filter:url(#filter13323)">
+      <circle
+         style="fill:#4063d8;fill-opacity:1;fill-rule:evenodd"
+         id="circle5680"
+         cx="75"
+         cy="75"
+         r="2" />
+    </g>
+    <circle
+       style="mix-blend-mode:normal;fill:#4063d8;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13323)"
+       id="circle5686"
+       cx="45"
+       cy="55"
+       r="2" />
+    <circle
+       style="mix-blend-mode:normal;fill:#389826;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13319)"
+       id="circle5616"
+       cx="60"
+       cy="55"
+       r="2" />
+    <circle
+       style="mix-blend-mode:normal;fill:#389826;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13319)"
+       id="circle5666"
+       cx="60"
+       cy="50"
+       r="2" />
+    <circle
+       style="mix-blend-mode:normal;fill:#389826;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13319)"
+       id="circle5690"
+       cx="80"
+       cy="50"
+       r="2" />
+    <circle
+       style="mix-blend-mode:normal;fill:#389826;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13319)"
+       id="circle5694"
+       cx="70"
+       cy="80"
+       r="2" />
+    <circle
+       style="mix-blend-mode:normal;fill:#389826;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13319)"
+       id="circle5698"
+       cx="40"
+       cy="80"
+       r="2" />
+    <circle
+       style="mix-blend-mode:normal;fill:#389826;fill-opacity:1;fill-rule:evenodd;filter:url(#filter13319)"
+       id="circle5700"
+       cx="40"
+       cy="50"
+       r="2" />
+  </g>
+</svg>
