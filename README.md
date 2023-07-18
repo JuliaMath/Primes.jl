@@ -1,4 +1,4 @@
-# Primes.jl
+# <div align="left"> <img src="docs/src/assets/logo.svg" alt="Primes.jl" width="300"></img></div>
 
 [![Build Status](https://travis-ci.org/JuliaMath/Primes.jl.svg?branch=master)](https://travis-ci.org/JuliaMath/Primes.jl)
 [![Windows Build](https://ci.appveyor.com/api/projects/status/ao64pk44lwo0092r/branch/master?svg=true)](https://ci.appveyor.com/project/ararslan/primes-jl/branch/master)
