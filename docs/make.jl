@@ -4,6 +4,7 @@ DocMeta.setdocmeta!(Primes, :DocTestSetup, :(using Primes); recursive = true)
 makedocs(
     modules = [Primes],
     sitename = "Primes.jl",
+    checkdocs = :none,
     pages = Any[
         "Home" => "index.md",
         "Functions" => "api.md"
