@@ -1,8 +1,8 @@
 # Primes.jl
 
-[![Build Status](https://travis-ci.org/JuliaMath/Primes.jl.svg?branch=master)](https://travis-ci.org/JuliaMath/Primes.jl)
-[![Windows Build](https://ci.appveyor.com/api/projects/status/ao64pk44lwo0092r/branch/master?svg=true)](https://ci.appveyor.com/project/ararslan/primes-jl/branch/master)
-[![Coverage Status](https://coveralls.io/repos/github/JuliaMath/Primes.jl/badge.svg?branch=master)](https://coveralls.io/github/JuliaMath/Primes.jl?branch=master)
+[![Build Status](https://github.com/JuliaMath/Primes.jl/workflows/CI/badge.svg)](https://github.com/JuliaMath/Primes.jl/actions?query=workflow%3A%22CI%22+branch%3Amaster)
+[![Codecov](https://codecov.io/gh/JuliaMath/Primes.jl/graph/badge.svg)](https://codecov.io/gh/JuliaMath/Primes.jl)
+
 
 Documentation:
 [![](https://img.shields.io/badge/docs-stable-blue.svg)](https://JuliaMath.github.io/Primes.jl/stable)
