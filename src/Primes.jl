@@ -968,7 +968,7 @@ For convenience, `divisors(0)` returns `[]`.
 
 # Example
 
-```julia
+```jldoctest; filter = r"(\\s+#.*)?"
 julia> divisors(60)
 12-element Vector{Int64}:
   1         # 1
@@ -983,8 +983,7 @@ julia> divisors(60)
  15         # 5 * 3
  30         # 5 * 3 * 2
  60         # 5 * 3 * 2 * 2
-```
-```jldoctest
+
 julia> divisors(-10)
 4-element Vector{Int64}:
   1
