@@ -1,5 +1,7 @@
 using Documenter, Primes
 
+DocMeta.setdocmeta!(Primes, :DocTestSetup, :(using Primes); recursive = true)
+
 makedocs(
     modules = [Primes],
     sitename = "Primes.jl",
