@@ -968,7 +968,7 @@ For convenience, `divisors(0)` returns `[]`.
 
 # Example
 
-```jldoctest
+```jldoctest; filter = r"(\\s+#.*)?"
 julia> divisors(60)
 12-element Vector{Int64}:
   1         # 1
