@@ -346,7 +346,7 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
         n == 0 && return (T(n), 1), (T(1), p)
     end
     tz = trailing_zeros(n)
-    tz>0 && return (T(2), tz), (n >> tz, p)
+    tz>0 && return (T(2), Int(tz)), (n >> tz, p)
     if n <= N_SMALL_FACTORS
         p = _min_factor(n)
         num_p = 1
