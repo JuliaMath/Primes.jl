@@ -247,11 +247,16 @@ end
 @test all([issorted(collect(factor(rand(Int)))) for x in 1:100])
 
 # test eachfactor iteration
-@test iterate(eachfactor(36)) == ((2, 2), (9, 3))
-@test iterate(eachfactor(7^2*5^3)) == ((5, 3), (49, 5))
-@test iterate(eachfactor(257)) == ((257, 1), (1, 257))
-@test iterate(eachfactor(nextprime(2^16))) == ((65537, 1), (1, 65537))
-                    
+for T in (Int32, Int64, BigInt)
+    @test iterate(eachfactor(T(36))) == ((T(2), 2), T.((9, 3)))
+    @test iterate(eachfactor(T(7^2*5^3))) == ((T(5), 3), T.((49, 5)))
+    @test iterate(eachfactor(T(257))) == ((T(257), 1), T.((1, 257)))
+    @test iterate(eachfactor(T(nextprime(2^16)))) == ((T(65537), 1), T.((1, 65537)))
+    for (p,e) in eachfactor(T(901800900))
+        @test (p,e) isa Tuple{T, Int}
+    end
+end
+
 # Lucas-Lehmer
 @test !ismersenneprime(2047)
 @test ismersenneprime(8191)
@@ -341,7 +346,7 @@ divisors_brute_force(n) = [d for d in one(n):n if iszero(n % d)]
 
     for n in 2:1000
         ds = divisors(T(n))
-        @test ds == divisors(-T(n)) 
+        @test ds == divisors(-T(n))
         @test sort!(ds) == divisors_brute_force(T(n))
     end
 end
