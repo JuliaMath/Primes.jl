@@ -357,7 +357,7 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     tz = trailing_zeros(n)
     tz>0 && return (T(2), Int(tz)), (n >> tz, p)
     if n <= N_SMALL_FACTORS
-        p = _min_factor(n)
+        p = T(_min_factor(n))
         num_p = 1
         while true
             n = div(n, p)
@@ -369,7 +369,7 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     elseif p == 3 && isprime(n)
         return (n, 1), (T(1), n)
     end
-    for p in p:2:N_SMALL_FACTORS
+    for p in p:T(2):T(N_SMALL_FACTORS)
         _min_factor(p) == p || continue
         num_p = 0
         while true
