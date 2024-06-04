@@ -1,7 +1,7 @@
 # Primes.jl
 
 [![Build Status](https://github.com/JuliaMath/Primes.jl/workflows/CI/badge.svg)](https://github.com/JuliaMath/Primes.jl/actions?query=workflow%3A%22CI%22+branch%3Amaster)
-[![Codecov](https://codecov.io/gh/JuliaMath/Primes.jl/graph/badge.svg)](https://codecov.io/gh/JuliaMath/Primes.jl)
+[![codecov](https://codecov.io/gh/JuliaMath/Primes.jl/graph/badge.svg?token=DI1wpcH9tB)](https://codecov.io/gh/JuliaMath/Primes.jl)
 
 
 Documentation:
