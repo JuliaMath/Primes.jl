@@ -43,7 +43,7 @@ function Base.setindex!(f::Factorization{T}, e::Int, p) where T
 end
 
 """
-    impliments f[p] += e faster
+    implements f[p] += e faster
 """
 function increment!(f::Factorization{T}, e::Int, p) where T
     found = searchsortedfirst(f.pe, p=>0, by=first)

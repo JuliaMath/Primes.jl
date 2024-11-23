@@ -133,7 +133,7 @@ function _generate_min_factors(limit)
     function min_factor(n)
         n < 4 && return n
         for i in 3:2:isqrt(n)
-           n%i == 0 && return i
+            n%i == 0 && return i
         end
         return n
     end
@@ -156,14 +156,14 @@ end
 """
     isprime(n::Integer) -> Bool
 
-Returns for values in the range of an INT64 variable:  `true` if `n` is prime, and `false` otherwise 
-        for bigger values: `true` if `n` is probably prime, and `false` otherwise (false-positive rate = 0.25^reps with reps=25 --> considerered safe)
+Returns for values in the range of an INT64 variable:  `true` if `n` is prime, and `false` otherwise
+        for bigger values: `true` if `n` is probably prime, and `false` otherwise (false-positive rate = 0.25^reps with reps=25 --> considered safe)
 
     More detailed:
     for even numbers: returns deterministic and correct results
     for values in the range of an  INT64 variable: returns deterministic and correct results (by Lookup-tables, trial-division, Miller-Rabin, Lucas-Test)
-    for bigger values: returns probabilistic resultsfrom GNU Multiple Precision Arithmetic Library 
-    
+    for bigger values: returns probabilistic resultsfrom GNU Multiple Precision Arithmetic Library
+
 ```julia
 julia> isprime(3)
 true
@@ -273,7 +273,7 @@ function lucas_test(n::T) where T<:Signed
         if isodd(k>>b) == 1
             Qk = mod(Qk*Q, n)
             U, V = U + V, V + U*D
-            # adding n makes them even 
+            # adding n makes them even
             # so we can divide by 2 without causing problems
             isodd(U) && (U += n)
             isodd(V) && (V += n)
@@ -328,9 +328,9 @@ Base.isempty(f::FactorIterator) = f.n == 1
 #
 
 """
-   eachfactor(n::Integer)->FactorIterator
+    eachfactor(n::Integer)->FactorIterator
 Returns a lazy iterator of factors of `n` in `(factor, multiplicity)` pairs.
-This can be very useful for computing multiplicitive functions since for small numbers (eg numbers with no factor `>2^16`),
+This can be very useful for computing multiplicative functions since for small numbers (e.g. numbers with no factor `>2^16`),
 allocating the storage required for `factor(n)` can introduce significant overhead.
 """
 eachfactor(n::Integer) = FactorIterator(n)
@@ -373,7 +373,7 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
         _min_factor(p) == p || continue
         num_p = 0
         while true
-            q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast divrem for `BigInt`
+            q, r = divrem(n, T(p)) # T(p) so julia <1.9 uses fast `divrem` for `BigInt`
             r == 0 || break
             num_p += 1
             n = q
