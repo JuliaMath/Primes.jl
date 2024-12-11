@@ -320,11 +320,10 @@ Base.isempty(f::FactorIterator) = f.n == 1
 # Uses a variety of algorithms depending on the size of n to find a factor.
 #     https://en.algorithmica.org/hpc/algorithms/factorization
 # Cache of small factors for small numbers (n < 2^16)
-# Trial division of small (< 2^16) precomputed primes
-# Pollard rho's algorithm with Richard P. Brent optimizations
+# Trial division of small (< 2^16) precomputed primes and
+# Lenstra elliptic curve algorithm
 #     https://en.wikipedia.org/wiki/Trial_division
-#     https://en.wikipedia.org/wiki/Pollard%27s_rho_algorithm
-#     http://maths-people.anu.edu.au/~brent/pub/pub051.html
+#     https://en.wikipedia.org/wiki/Lenstra_elliptic-curve_factorization
 #
 
 """
@@ -387,8 +386,20 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     if n <= 2^32 || isprime(n)
         return (n, 1), (T(1), n)
     end
+    # check for n=root^r
+    r = cld(ndigits(n, base=2), ndigits(N_SMALL_FACTORS, base=2))
+    root = iroot(n, r)
+    while r >= 2
+        if root^r == n
+            isprime(root) && return (root, r), (n, root+2)
+            
+        end
+        r -= 1
+        root = iroot(n, r)
+    end
+
     should_widen = T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n)
-    p = should_widen ? pollardfactor(n) : pollardfactor(widen(n))
+    p = should_widen ? lenstrafactor(n) : lenstrafactor(widen(n))
     num_p = 0
     while true
         q, r = divrem(n, p)
@@ -520,55 +531,65 @@ julia> radical(2*2*3)
 """
 radical(n) = n==1 ? one(n) : prod(p for (p, num_p) in eachfactor(n))
 
-function pollardfactor(n::T) where {T<:Integer}
-    while true
-        c::T = rand(1:(n - 1))
-        G::T = 1
-        r::T = 1
-        y::T = rand(0:(n - 1))
-        m::T = 100
-        ys::T = 0
-        q::T = 1
-        x::T = 0
-        while c == n - 2
-            c = rand(1:(n - 1))
-        end
-        while G == 1
-            x = y
-            for i in 1:r
-                y = y^2 % n
-                y = (y + c) % n
+function lenstrafactor(n::T) where{T<:Integer}
+    # bounds and runs per bound taken from
+    # https://www.rieselprime.de/ziki/Elliptic_curve_method
+    B1s = Int[2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
+                43e6, 11e7, 26e7, 85e7, 29e8, 76e8, 25e9]
+    runs = Int[25, 90, 300, 700, 1800, 5100, 1800, 10600,
+              19300, 49000, 124000, 210000, 340000, 10^6, 10^7]
+    for (B1, run) in zip(B1s, runs)
+        small_primes = primes(B1)
+        for a in -run:run
+            res = lenstra_get_factor(n, a, small_primes, B1)
+            if res != 1
+                return isprime(res) ? res : lenstrafactor(res)
             end
-            k::T = 0
-            G = 1
-            while k < r && G == 1
-                ys = y
-                for i in 1:(m > (r - k) ? (r - k) : m)
-                    y = y^2 % n
-                    y = (y + c) % n
-                    q = (q * (x > y ? x - y : y - x)) % n
-                end
-                G = gcd(q, n)
-                k += m
-            end
-            r *= 2
-        end
-        G == n && (G = 1)
-        while G == 1
-            ys = ys^2 % n
-            ys = (ys + c) % n
-            G = gcd(x > ys ? x - ys : ys - x, n)
-        end
-        if G != n
-            G2 = div(n,G)
-            f = min(G, G2)
-            _gcd = gcd(G, G2)
-            if _gcd != 1
-                f = _gcd
-            end
-            return isprime(f) ? f : pollardfactor(f)
         end
     end
+    throw(ArgumentError("This number is too big to be factored with this algorith effectively"))
+end
+
+function lenstra_get_factor(N::T, a, small_primes, plimit) where T <: Integer
+    x, y = T(0), T(1)
+    for B in small_primes
+        t = B^trunc(Int64, log(B, plimit))
+        xn, yn = T(0), T(0)
+        sx, sy = x, y
+
+        first = true
+        while t > 0
+            if isodd(t)
+                if first
+                    xn, yn = sx, sy
+                    first = false
+                else
+                    g, u, _ = gcdx(sx-xn, N)
+                    g > 1 && (g == N ? break : return g)
+                    u += N
+                    L  = (u*(sy-yn)) % N
+                    xs = (L*L - xn - sx) % N
+
+                    yn = (L*(xn - xs) - yn) % N
+                    xn = xs
+                end
+            end
+            g, u, _ = gcdx(2*sy, N)
+            g > 1 && (g == N ? break : return g)
+            u += N
+
+            L  = (u*(3*sx*sx + a)) % N
+            x2 = (L*L - 2*sx) % N
+
+            sy = (L*(sx - x2) - sy) % N
+            sx = x2
+
+            sy == 0 && return T(1)
+            t >>= 1
+        end
+        x, y = xn, yn
+    end
+    return T(1)
 end
 
 """
@@ -646,7 +667,7 @@ given by `f`. This method may be preferable to [`totient(::Integer)`](@ref)
 when the factorization can be reused for other purposes.
 """
 function totient(f::Factorization{T}) where T <: Integer
-    if iszero(sign(f))
+    if !isempty(f) && first(first(f)) == 0
         throw(ArgumentError("ϕ(0) is not defined"))
     end
     result = one(T)
@@ -665,16 +686,8 @@ positive integers less than or equal to ``n`` that are relatively prime to
 The totient function of `n` when `n` is negative is defined to be
 `totient(abs(n))`.
 """
-function totient(n::T) where T<:Integer
-    n = abs(n)
-    if n == 0
-        throw(ArgumentError("ϕ(0) is not defined"))
-    end
-    result = one(T)
-    for (p, k) in eachfactor(n)
-        result *= p^(k-1) * (p - 1)
-    end
-    result
+function totient(n::Integer)
+    totient(factor(abs(n)))
 end
 
 # add: checked add (when makes sense), result of same type as first argument
@@ -964,19 +977,13 @@ prevprimes(start::T, n::Integer) where {T<:Integer} =
 
 """
     divisors(n::Integer) -> Vector
-
 Return a vector with the positive divisors of `n`.
-
 For a nonzero integer `n` with prime factorization `n = p₁^k₁ ⋯ pₘ^kₘ`, `divisors(n)`
 returns a vector of length (k₁ + 1)⋯(kₘ + 1) containing the divisors of `n` in
 lexicographic (rather than numerical) order.
-
 `divisors(-n)` is equivalent to `divisors(n)`.
-
 For convenience, `divisors(0)` returns `[]`.
-
 # Example
-
 ```jldoctest; filter = r"(\\s+#.*)?"
 julia> divisors(60)
 12-element Vector{Int64}:
@@ -992,14 +999,12 @@ julia> divisors(60)
  15         # 5 * 3
  30         # 5 * 3 * 2
  60         # 5 * 3 * 2 * 2
-
 julia> divisors(-10)
 4-element Vector{Int64}:
   1
   2
   5
  10
-
 julia> divisors(0)
 Int64[]
 ```
@@ -1017,7 +1022,6 @@ end
 
 """
     divisors(f::Factorization) -> Vector
-
 Return a vector with the positive divisors of the number whose factorization is `f`.
 Divisors are sorted lexicographically, rather than numerically.
 """
