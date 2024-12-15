@@ -532,7 +532,7 @@ function QSfactor(n::T) where T
     # Generate factor base
     factor_base = [p for p in primes(B) if kronecker(n, p) == 1]
 
-    I = length(factor_base)#10*B # TODO: tune this
+    I = 10*B # TODO: tune this
     factored, smooth_nums, xs, relations = find_relations(n, factor_base, I)
     while !factored && length(xs) < length(factor_base) + 5
         I *= 2
