@@ -387,8 +387,8 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     if n <= 2^32 || isprime(n)
         return (n, 1), (T(1), n)
     end
-    should_widen = T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n)
-    p = should_widen ? pollardfactor(n) : pollardfactor(widen(n))
+    p = QSfactor(n)
+    isprime(p) || (p = QSfactor(p))
     num_p = 0
     while true
         q, r = divrem(n, p)
@@ -396,6 +396,182 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
         num_p += 1
         n = q
     end
+end
+
+
+function gaussGF2(relations)
+    num_relations = length(relations)
+    num_factors = length(relations[1])
+    @assert num_relations >= num_factors
+    
+    rprime = BitVector.(eachrow(reduce(hcat, relations)))
+    marks = falses(num_relations)
+    for j in 1:num_factors
+        mark_row = findfirst(rprime[j])
+        if !isnothing(mark_row)
+            marks[mark_row] = true
+            for k in 1:j-1
+                if rprime[k][mark_row]
+                    @. rprime[k] = rprime[k] ⊻ rprime[j]
+                end
+            end
+            for k in j+1:num_factors
+                if rprime[k][mark_row]
+                    @. rprime[k] = rprime[k] ⊻ rprime[j]
+                end
+            end
+        end
+    end
+    return rprime, marks, BitVector.(eachrow(reduce(hcat, rprime)))
+end
+
+# Tonelli-shanks algorithm
+# from https://github.com/byhill/ModularSquareRoots.jl
+function TonelliShanks(n::T, p::T) where {T<:Integer}
+    (Q, S) = (p - 1, 0)
+    while iseven(Q)
+        Q >>= 1
+        S += 1
+    end
+    z = first(z for z in 2:p-1 if powermod(z, (p - 1) >> 1, p) == p - 1)
+
+    M = S
+    c = powermod(z, Q, p)
+    t = powermod(n, Q, p)
+    R = powermod(n, (Q + 1) >> 1, p)
+
+    while !isone(t)
+        i = first(i for i in 1:M-1 if powermod(t, 2^i, p) == 1)
+
+        b = powermod(c, 2^(M - i - 1), p)
+        M = i
+        c = powermod(b, 2, p)
+
+        (tc, flag) = Base.mul_with_overflow(t, c)
+        t = flag ? T(mod(widemul(t, c), p)) : mod(tc, p)
+
+        (Rb, flag) = Base.mul_with_overflow(R, b)
+        R = flag ? T(mod(widemul(R, b), p)) : mod(Rb, p)
+    end
+    return (R, p - R)
+end
+
+function find_relations(n::T, factor_base, I) where T
+    # how many times does p divide q, and remainder
+    function divide_power(q, p)
+        temp_q = q
+        for num_p in 0:typemax(Int)
+            temp_q, r = divrem(q, p)
+            r != 0 && return num_p, q
+            q = temp_q
+        end
+    end
+    
+    sieve_factor_base = factor_base[findfirst(>(2), factor_base):end]
+    lfb = @. log2(sieve_factor_base)
+    sqrtn = isqrt(n)
+    sieve_start = sqrtn-I
+    nf = Float64(n)
+    sqrtnf = Float64(sqrtn)
+    # the fact that the range has to be specified as a BigInt seems like it might be a Julia bug
+    xsf = range(sqrtnf-I, sqrtnf+I, length=big(2I+1))
+    bound(i) = exponent(abs(fma(xsf[i], xsf[i], - nf)))
+    sieve = Float64[bound(i) for i in 1:2I+1]
+    # we can subtract lfb[end] since we know that we have checked for all smaller factors
+    # this helps deal with the fact that we aren't sieving 2s or prime powers
+    @. sieve -= lfb[end] - 1
+    #TODO: 2 in factor_base and prime powers
+    for (p, lp) in zip(sieve_factor_base, lfb)
+        for r in TonelliShanks(Int64(n%p), p)
+            # +1 at end because 1 based indexing
+            start = Int64(mod(r-sieve_start, p))+1
+            for i in start:p:length(sieve)
+                sieve[i] -= lp
+            end
+        end
+    end
+    # i-1 because 1 based indexing
+    smooth_inds = [i-1 for (i, b) in enumerate(sieve) if b<0]
+    xs = [sieve_start + ind for ind in smooth_inds]
+    smooth_nums = [Int128(x^2 - n) for x in xs]
+    
+    # +1 for -1
+    relations = [falses(length(factor_base)+1) for _ in eachindex(smooth_inds)]
+    for i in eachindex(smooth_inds)
+        q = smooth_nums[i]
+        x = xs[i]
+        relation = relations[i]
+        if q < 0
+            q = -q
+            relation[1]=true
+        end
+        for (i, p) in enumerate(factor_base)
+            num_p, q = divide_power(q, p)
+            isodd(num_p) && (relation[i+1] = 1)
+            if q == 1
+                if iszero(relation) && 1 < q_orig < n
+                    return true, [q_orig], [x], [relation]
+                end
+                break
+            end
+        end
+    end
+    return false, smooth_nums, xs, relations
+end
+
+# Quadratic sieve factoring
+# inspiration taken from https://github.com/NachiketUN/Quadratic-Sieve-Algorithm/
+function QSfactor(n::T) where T
+    # Calculate factor base size and limit
+    logn = ndigits(n, base=2)*log(2) # Approximate log(n) in Float64
+    loglogn = log(logn)
+    limit_big = exp(sqrt(logn * loglogn/2))
+   
+    # Convert to Int64 safely
+    B = Int(min(round(Int,limit_big), typemax(Int32)))
+
+    # Generate factor base
+    factor_base = [p for p in primes(B) if kronecker(n, p) == 1]
+
+    I = B # TODO: tune this
+    factored, smooth_nums, xs, relations = find_relations(n, factor_base, I)
+    if factored
+        return only(xs) - isqrt(only(smooth_nums))
+    end
+    while length(xs) < length(factor_base) + 5
+        @show 
+        off_by = length(factor_base)/length(xs)
+        I = round(Int, I*max(2, off_by))
+        factored, smooth_nums, xs, relations = find_relations(n, factor_base, I)
+        if factored
+            return only(xs) - isqrt(only(smooth_nums))
+        end
+    end
+    # Gausian elimination
+    rprime, marks, rrelations = gaussGF2(relations)
+    
+    for i in eachindex(marks)
+        if !marks[i] #candidate solution
+            solution_candidate = [i]
+            indices = [j for (j, r) in enumerate(rprime) if r[i]]
+            for (r, relation) in enumerate(rrelations)
+                for j in indices
+                    if marks[r] && relation[j]
+                        push!(solution_candidate, r)
+                        break
+                    end
+                end
+            end
+            @assert iszero(reduce((x,y)->map(⊻, x, y), relations[i] for i in solution_candidate))
+            a2 = prod([big(smooth_nums[j]) for j in solution_candidate])
+            b  = prod([big(xs[j])          for j in solution_candidate])
+            candidate_ans = gcd(b-isqrt(a2), n)
+            if 1 < candidate_ans < n
+                return min(candidate_ans, div(n, candidate_and))
+            end
+        end
+    end
+    error("no factors found, please report this as a bug.")
 end
 
 function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
@@ -519,57 +695,6 @@ julia> radical(2*2*3)
 ```
 """
 radical(n) = n==1 ? one(n) : prod(p for (p, num_p) in eachfactor(n))
-
-function pollardfactor(n::T) where {T<:Integer}
-    while true
-        c::T = rand(1:(n - 1))
-        G::T = 1
-        r::T = 1
-        y::T = rand(0:(n - 1))
-        m::T = 100
-        ys::T = 0
-        q::T = 1
-        x::T = 0
-        while c == n - 2
-            c = rand(1:(n - 1))
-        end
-        while G == 1
-            x = y
-            for i in 1:r
-                y = y^2 % n
-                y = (y + c) % n
-            end
-            k::T = 0
-            G = 1
-            while k < r && G == 1
-                ys = y
-                for i in 1:(m > (r - k) ? (r - k) : m)
-                    y = y^2 % n
-                    y = (y + c) % n
-                    q = (q * (x > y ? x - y : y - x)) % n
-                end
-                G = gcd(q, n)
-                k += m
-            end
-            r *= 2
-        end
-        G == n && (G = 1)
-        while G == 1
-            ys = ys^2 % n
-            ys = (ys + c) % n
-            G = gcd(x > ys ? x - ys : ys - x, n)
-        end
-        if G != n
-            G2 = div(n,G)
-            f = min(G, G2)
-            _gcd = gcd(G, G2)
-            if _gcd != 1
-                f = _gcd
-            end
-            return isprime(f) ? f : pollardfactor(f)
-        end
-    end
-end
 
 """
     ismersenneprime(M::Integer; [check::Bool = true]) -> Bool
