@@ -473,8 +473,7 @@ function find_relations(n::T, factor_base, I) where T
     sieve_start = sqrtn-I
     nf = Float64(n)
     sqrtnf = Float64(sqrtn)
-    # the fact that the range has to be specified as a BigInt seems like it might be a Julia bug
-    xsf = range(sqrtnf-I, sqrtnf+I, length=big(2I+1))
+    xsf = LinRange(sqrtnf-I, sqrtnf+I, 2I+1)
     bound(i) = exponent(abs(fma(xsf[i], xsf[i], - nf)))
     sieve = Float64[bound(i) for i in 1:2I+1]
     # we can subtract lfb[end] since we know that we have checked for all smaller factors
@@ -498,7 +497,7 @@ function find_relations(n::T, factor_base, I) where T
     # +1 for -1
     relations = [falses(length(factor_base)+1) for _ in eachindex(smooth_inds)]
     for i in eachindex(smooth_inds)
-        q = smooth_nums[i]
+        q_orig = q = smooth_nums[i]
         x = xs[i]
         relation = relations[i]
         if q < 0
@@ -533,20 +532,16 @@ function QSfactor(n::T) where T
     # Generate factor base
     factor_base = [p for p in primes(B) if kronecker(n, p) == 1]
 
-    I = B # TODO: tune this
+    I = length(factor_base)#10*B # TODO: tune this
     factored, smooth_nums, xs, relations = find_relations(n, factor_base, I)
+    while !factored && length(xs) < length(factor_base) + 5
+        I *= 2
+        factored, smooth_nums, xs, relations = find_relations(n, factor_base, I)
+    end
     if factored
         return only(xs) - isqrt(only(smooth_nums))
     end
-    while length(xs) < length(factor_base) + 5
-        @show 
-        off_by = length(factor_base)/length(xs)
-        I = round(Int, I*max(2, off_by))
-        factored, smooth_nums, xs, relations = find_relations(n, factor_base, I)
-        if factored
-            return only(xs) - isqrt(only(smooth_nums))
-        end
-    end
+    return
     # Gausian elimination
     rprime, marks, rrelations = gaussGF2(relations)
     
@@ -562,12 +557,15 @@ function QSfactor(n::T) where T
                     end
                 end
             end
-            @assert iszero(reduce((x,y)->map(⊻, x, y), relations[i] for i in solution_candidate))
-            a2 = prod([big(smooth_nums[j]) for j in solution_candidate])
-            b  = prod([big(xs[j])          for j in solution_candidate])
+            a2 = big(1)
+            b = big(1)
+            for j in solution_candidate
+                a2 *= smooth_nums[j]
+                b  *= xs[j]
+            end
             candidate_ans = gcd(b-isqrt(a2), n)
             if 1 < candidate_ans < n
-                return min(candidate_ans, div(n, candidate_and))
+                return min(candidate_ans, div(n, candidate_ans))
             end
         end
     end
