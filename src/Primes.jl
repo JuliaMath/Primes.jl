@@ -474,7 +474,7 @@ function find_relations(n::T, factor_base, I) where T
     nf = Float64(n)
     sqrtnf = Float64(sqrtn)
     xsf = LinRange(sqrtnf-I, sqrtnf+I, 2I+1)
-    bound(i) = exponent(abs(fma(xsf[i], xsf[i], - nf)))
+    bound(i) = exponent(abs(max(fma(xsf[i], xsf[i], - nf), eps(nf))))
     sieve = Float64[bound(i) for i in 1:2I+1]
     # we can subtract lfb[end] since we know that we have checked for all smaller factors
     # this helps deal with the fact that we aren't sieving 2s or prime powers
@@ -541,7 +541,6 @@ function QSfactor(n::T) where T
     if factored
         return only(xs) - isqrt(only(smooth_nums))
     end
-    return
     # Gausian elimination
     rprime, marks, rrelations = gaussGF2(relations)
     
