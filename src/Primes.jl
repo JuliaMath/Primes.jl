@@ -590,13 +590,66 @@ true
 ```
 """
 function ismersenneprime(M::Integer; check::Bool = true)
+    d = ndigits(M, base=2)
     if check
-        d = ndigits(M, base=2)
         M >= 0 && isprime(d) && (M >> d == 0) ||
             throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
     end
     M < 7 && return M == 3
+    # If d is large, it is worth it to try to wead out easy cases
+    d > 10007 && has_small_factor_mersenne(M) && return false
     return ll_primecheck(M)
+end
+
+# Prime sieve for numbers of the form ax+b
+# Filters out all composites with divisors less than 2^16
+function linear_sieve(a,b,max)
+    arr = falses(div((max-b),a))
+    sqrtmax = isqrt(max)
+    for p in PRIMES
+        p > sqrtmax && break
+        g,x,_ = gcdx(a, p)
+        if g != 1
+            if mod(b,p) == 0
+                return typeof(max)[]
+            end
+            continue
+        end
+        # x*a = 1 mod p
+        k = mod(-b*x, p)
+        arr[k+1:p:end] .= true
+        # don't set p as composite. (only applies if arr contains elements as small as p)
+        if a*k+b == p
+            arr[k+1]=false
+        end
+    end
+    if b == 1
+        arr[1] = true
+    end
+    return (a*(i-1)+b for (i,x) in enumerate(arr) if !x)
+end
+
+# Returns whether M=2^d-1 has a small factor
+# For each factor, checks if 2^d = 1 \pmod factor.
+# Uses the fact that all factors must be of the form
+# 2kd+1 for integer k
+function has_small_factor_mersenne(M::Integer)
+    d = ndigits(M, base=2)
+    for factor in linear_sieve(2 * d, 1, Int64(2)^40)
+        factor & 7 in (3,5) && continue
+        if powermod(2, d, factor) == 1
+            return true
+        end
+    end
+    return false
+end
+
+# Calculates n % 2^d-1 where M=2**d-1
+function mod_mersenne(n, d, M)
+    while n > M
+        n = (n & M) + (n >> d)
+    end
+    return n != M ? n : 0
 end
 
 """
@@ -633,7 +686,7 @@ function ll_primecheck(X::Integer, s::Integer = 4)
     S, N = BigInt(s), BigInt(ndigits(X, base=2))
     X < 7 && throw(ArgumentError("The condition X ≥ 7 must be met."))
     for i in 1:(N - 2)
-        S = (S^2 - 2) % X
+        S = mod_mersenne((S^2 - 2), N, X)
     end
     return S == 0
 end
@@ -655,7 +708,7 @@ function totient(f::Factorization{T}) where T <: Integer
     end
     result
 end
-
+ 0
 """
     totient(n::Integer) -> Integer
 
