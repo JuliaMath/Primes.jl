@@ -262,6 +262,7 @@ end
 @test ismersenneprime(8191)
 @test_throws ArgumentError ismersenneprime(9)
 @test_throws ArgumentError ismersenneprime(9, check=true)
+@test_throws ArgumentError ismersenneprime(17, check=true)
 # test the following does not throw
 ismersenneprime(9, check=false)
 
