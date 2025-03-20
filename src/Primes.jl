@@ -592,7 +592,7 @@ true
 function ismersenneprime(M::Integer; check::Bool = true)
     if check
         d = ndigits(M, base=2)
-        M >= 0 && isprime(d) && (M >> d == 0) ||
+        (M >= 0 && d == count_ones(M) && isprime(d)) ||
             throw(ArgumentError("The argument given is not a valid Mersenne Number (`M = 2^p - 1`)."))
     end
     M < 7 && return M == 3
