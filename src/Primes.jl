@@ -551,6 +551,7 @@ function pollardfactor(n::T) where {T<:Integer}
                 G = gcd(q, n)
                 k += m
             end
+            yield()
             r *= 2
         end
         G == n && (G = 1)
