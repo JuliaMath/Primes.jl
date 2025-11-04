@@ -156,17 +156,22 @@ end
 """
     isprime(n::Integer) -> Bool
 
-Returns for values in the range of an INT64 variable:  `true` if `n` is prime, and `false` otherwise
-        for bigger values: `true` if `n` is probably prime, and `false` otherwise (false-positive rate = 0.25^reps with reps=25 --> considered safe)
+Returns for values in the range of an INT64 variable:  `true` if `n` is prime, and `false`
+otherwise for bigger values: `true` if `n` is probably prime, and `false` otherwise
+(false-positive rate = 0.25^reps with reps=25 --> considered safe)
 
-    More detailed:
-    for even numbers: returns deterministic and correct results
-    for values in the range of an  INT64 variable: returns deterministic and correct results (by Lookup-tables, trial-division, Miller-Rabin, Lucas-Test)
-    for bigger values: returns probabilistic resultsfrom GNU Multiple Precision Arithmetic Library
+More detailed:
+- for even numbers: returns deterministic and correct results regardless of type
+- for values in the range of an `Int64` variable: returns deterministic and correct results
+  (by Lookup-tables, trial-division, Miller-Rabin, Lucas-Test)
+- for bigger values: returns probabilistic results from GNU Multiple Precision Arithmetic Library
 
 ```julia
 julia> isprime(3)
 true
+
+julia> isprime(4)
+false
 ```
 """
 function isprime(n::Integer)
@@ -177,10 +182,10 @@ end
 # Uses a polyalgorithm depending on the size of n.
 # n < 2^16: lookup table (we already have this table because it helps factor also)
 # n < 2^32: trial division + Miller-Rabbin test with base chosen by
-#         Forišek and Jančina, "Fast Primality Testing for Integers That Fit into a Machine Word", 2015
-#         (in particular, see function FJ32_256, from which the hash and bases were taken)
+#           Forišek and Jančina, "Fast Primality Testing for Integers That Fit into a Machine Word", 2015
+#           (in particular, see function FJ32_256, from which the hash and bases were taken)
 # n < 2^64: Baillie–PSW for primality testing.
-#         Specifically, this consists of a Miller-Rabbin test and a Lucas test
+#           Specifically, this consists of a Miller-Rabbin test and a Lucas test
 # For more background on fast primality testing, see:
 #     http://ntheory.org/pseudoprimes.html
 #     http://ntheory.org/pseudoprimes.html
@@ -193,7 +198,7 @@ function isprime(n::Int64)
     for m in (3, 5, 7, 11, 13, 17, 19, 23)
         n % m == 0 && return false
     end
-    if n<2^32
+    if n < 2^32
         return miller_rabbin_test(_witnesses(UInt64(n)), n)
     end
     miller_rabbin_test(2, n) || return false
