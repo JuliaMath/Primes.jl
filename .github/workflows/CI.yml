@@ -34,13 +34,31 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    permissions:
+      # needed to allow julia-actions/cache to proactively delete old caches that it has created
+      actions: write 
+      contents: write
+      statuses: write
     steps:
       - uses: actions/checkout@v6
       - uses: julia-actions/setup-julia@v2
         with:
-          version: '1.9'
+          version: '1'
       - uses: julia-actions/cache@v2
+      - name: Configure doc environment
+        shell: julia --project=docs --color=yes {0}
+        run: |
+          using Pkg
+          Pkg.develop(PackageSpec(path=pwd()))
+          Pkg.instantiate()
       - uses: julia-actions/julia-buildpkg@v1
+      - name: Run doctests
+        shell: julia --project=docs --color=yes {0}
+        run: |
+          using Documenter: DocMeta, doctest
+          using Primes
+          DocMeta.setdocmeta!(Primes, :DocTestSetup, :(using Primes); recursive=true)
+          doctest(Primes)
       - uses: julia-actions/julia-docdeploy@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
