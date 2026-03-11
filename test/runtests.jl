@@ -564,6 +564,107 @@ end
     @test first(f2) == (p => 1)
 end
 
+@testset "Tonelli-Shanks" begin
+    # p ≡ 3 (mod 4) — fast path (s == 1)
+    @test Primes._tonelli_shanks(big"2", 7)^2 % 7 == 2
+    # p ≡ 1 (mod 4) — general path
+    @test Primes._tonelli_shanks(big"2", 17)^2 % 17 == 2
+    # n == 0 case
+    @test Primes._tonelli_shanks(big"0", 7) == 0
+    # p == 2 case
+    @test Primes._tonelli_shanks(big"1", 2) == 1
+    # Larger prime requiring full Tonelli-Shanks loop (p ≡ 1 mod 8, s > 1)
+    @test Primes._tonelli_shanks(big"2", 41)^2 % 41 == 2
+end
+
+@testset "MPQS parameter selection" begin
+    # Small number (below minimum)
+    fb, si = Primes._mpqs_select_params(big"10"^20)
+    @test fb > 0
+    @test si > 0
+    # Large number (above maximum)
+    fb2, si2 = Primes._mpqs_select_params(big"10"^80)
+    @test fb2 == 16000
+    @test si2 == 250000
+    # Mid-range (interpolation)
+    fb3, si3 = Primes._mpqs_select_params(big"10"^50)
+    @test fb3 > 0
+    @test si3 > 0
+end
+
+@testset "Knuth multiplier selection" begin
+    n = big"632459103267572196107100983820469021721602147490918660274601"
+    k = Primes._select_knuth_multiplier(n)
+    @test k >= 1
+    @test isodd(k)
+    @test k <= 47
+end
+
+@testset "Factor base construction" begin
+    kn = big"3" * big"632459103267572196107100983820469021721602147490918660274601"
+    fb, sqr, logp = Primes._build_factor_base(kn, 20)
+    @test fb[1] == 2
+    @test length(fb) == 20
+    @test length(sqr) == 20
+    @test length(logp) == 20
+    # Verify sqrt_kn_mod values: r^2 ≡ kn (mod p) for odd primes
+    for i in 2:length(fb)
+        p = fb[i]
+        r = sqr[i]
+        @test mod(r * r, p) == mod(kn, p)
+    end
+end
+
+@testset "GF(2) Gaussian elimination" begin
+    # Empty input
+    deps = Primes._gf2_eliminate_gaussian(BitVector[], 3)
+    @test isempty(deps)
+    # Two identical vectors should produce a dependency
+    v = BitVector([true, false, true])
+    deps2 = Primes._gf2_eliminate_gaussian([v, copy(v)], 3)
+    @test length(deps2) >= 1
+    @test sort(deps2[1]) == [1, 2]
+    # Three vectors with one dependency: v1 ⊻ v2 = v3
+    v1 = BitVector([true, false, true, false])
+    v2 = BitVector([false, true, true, false])
+    v3 = BitVector([true, true, false, false])  # v1 ⊻ v2
+    deps3 = Primes._gf2_eliminate_gaussian([v1, v2, v3], 4)
+    @test length(deps3) >= 1
+end
+
+@testset "ECM edge cases" begin
+    # ECM with a small semi-prime
+    n = big"1000000007" * big"1000000009"
+    result = Primes.ecm_factor(n, 2000, 50)
+    @test result !== nothing
+    @test mod(n, result) == 0
+
+    # ECM returns nothing when curves are insufficient for a hard number
+    hard = nextprime(big"10"^30) * nextprime(big"10"^30 + 1000)
+    result2 = Primes.ecm_factor(hard, 100, 1)
+    # May or may not find a factor with just 1 curve — no assertion on result
+end
+
+@testset "Polyalgorithm ECM schedule branches" begin
+    # Small number — exercises the < 128 bits branch
+    p1 = nextprime(big"10"^10)
+    q1 = nextprime(big"10"^10 + 1000)
+    n1 = p1 * q1
+    f1 = Primes._find_factor(n1)
+    @test mod(n1, f1) == 0 && f1 > 1 && f1 < n1
+
+    # Medium number (~40 digits, >= 128 bits) — exercises the 128-192 bits branch
+    p2 = nextprime(big"10"^19)
+    q2 = nextprime(big"10"^19 + 1000)
+    n2 = p2 * q2
+    f2 = Primes._find_factor(n2)
+    @test mod(n2, f2) == 0 && f2 > 1 && f2 < n2
+
+    # Perfect power path
+    @test Primes._find_factor(big"2"^64) == 2
+    @test Primes._find_factor(big"7"^3) == 7
+end
+
 @testset "Large semi-prime factorization (#159)" begin
     n = big"632459103267572196107100983820469021721602147490918660274601"
     f = factor(n)

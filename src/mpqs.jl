@@ -779,29 +779,38 @@ function _siqs_collect!(poly::MPQSPolynomial, ctx::MPQSContext,
                         tf_ax_b::BigInt, tf_Qx::BigInt, tf_gx::BigInt)
     a, b = poly.a, poly.b
     kn = ctx.n
-    sieve_len = 2 * M + 1
+    sieve_len = length(sieve)
 
-    # Vectorized sieve scanning: process 8 bytes at a time
-    sieve_ptr = pointer(sieve)
-    chunk_end = sieve_len - 7
-    i = 1
-    @inbounds while i <= chunk_end
-        chunk = unsafe_load(Ptr{UInt64}(sieve_ptr + i - 1))
-        if chunk & 0x8080808080808080 != 0
-            for k in 0:7
-                unsafe_load(sieve_ptr, i + k) >= 0x80 || continue
-                _process_candidate!(i + k, a, b, kn, M, ctx,
-                                    large_prime_bound, dlp_bound, dlp_bound_sq,
-                                    starts1, starts2, poly.a_factors,
-                                    tf_exponents, tf_full_exp, tf_remainder, tf_quotient,
-                                    tf_ax_b, tf_Qx, tf_gx,
-                                    relations, partial_relations)
+    # Vectorized sieve scanning: process 8 bytes at a time via reinterpret
+    num_chunks = div(sieve_len, 8)
+    body_len = num_chunks * 8
+
+    if num_chunks > 0
+        sieve_body = @view sieve[1:body_len]
+        sieve_chunks = reinterpret(UInt64, sieve_body)
+
+        @inbounds for j in 1:num_chunks
+            chunk = sieve_chunks[j]
+            # The bitmask trick: check if any of the 8 bytes have the high bit set
+            if chunk & 0x8080808080808080 != 0
+                for k in 1:8
+                    idx = (j - 1) * 8 + k
+                    if sieve[idx] >= 0x80
+                        _process_candidate!(idx, a, b, kn, M, ctx,
+                                            large_prime_bound, dlp_bound, dlp_bound_sq,
+                                            starts1, starts2, poly.a_factors,
+                                            tf_exponents, tf_full_exp, tf_remainder, tf_quotient,
+                                            tf_ax_b, tf_Qx, tf_gx,
+                                            relations, partial_relations)
+                    end
+                end
             end
         end
-        i += 8
     end
-    @inbounds while i <= sieve_len
-        if unsafe_load(sieve_ptr, i) >= 0x80
+
+    # Handle the tail (remaining 1 to 7 bytes that didn't fit in a UInt64)
+    @inbounds for i in (body_len + 1):sieve_len
+        if sieve[i] >= 0x80
             _process_candidate!(i, a, b, kn, M, ctx,
                                 large_prime_bound, dlp_bound, dlp_bound_sq,
                                 starts1, starts2, poly.a_factors,
@@ -809,7 +818,6 @@ function _siqs_collect!(poly::MPQSPolynomial, ctx::MPQSContext,
                                 tf_ax_b, tf_Qx, tf_gx,
                                 relations, partial_relations)
         end
-        i += 1
     end
 end
 
