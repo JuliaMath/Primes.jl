@@ -19,15 +19,15 @@ function _find_factor(n::T)::T where {T<:Integer}
 
     # Convert to BigInt for ECM/MPQS
     nb = BigInt(n)
+    bits = ndigits(nb, base=2)
 
     # 2. Progressive ECM with increasing B1 bounds
-    # Keep ECM budget moderate; MPQS is faster for balanced semiprimes.
-    # ECM excels when one factor is much smaller than the other.
-    d = ndigits(nb)
-    ecm_schedule = if d >= 55
+    # Thresholds converted from base-10:
+    # 192 bits ≈ 58 digits | 128 bits ≈ 38 digits
+    ecm_schedule = if bits >= 192
         # For large numbers, brief ECM then fall through to MPQS
         [(B1=2000, curves=10), (B1=11000, curves=20)]
-    elseif d >= 40
+    elseif bits >= 128
         [(B1=2000, curves=25), (B1=11000, curves=90), (B1=50000, curves=200)]
     else
         [(B1=2000, curves=25), (B1=11000, curves=90)]
