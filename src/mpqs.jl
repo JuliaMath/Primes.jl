@@ -754,7 +754,6 @@ function _siqs_sieve!(sieve::Vector{UInt8}, sieve_len::Int,
         end
     end
 
-    sieve_ptr = pointer(sieve)
     @inbounds for j in sieve_start_idx:fb_size
         p = factor_base[j]
         logp = log_primes[j]
@@ -767,24 +766,24 @@ function _siqs_sieve!(sieve::Vector{UInt8}, sieve_len::Int,
             pos1 = s1
             pos2 = s2
             while pos1 <= sieve_len && pos2 <= sieve_len
-                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos1) - logp, pos1)
-                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos2) - logp, pos2)
+                sieve[pos1] -= logp
+                sieve[pos2] -= logp
                 pos1 += p
                 pos2 += p
             end
             while pos1 <= sieve_len
-                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos1) - logp, pos1)
+                sieve[pos1] -= logp
                 pos1 += p
             end
             while pos2 <= sieve_len
-                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos2) - logp, pos2)
+                sieve[pos2] -= logp
                 pos2 += p
             end
         else
             # Single root (p | a)
             pos = s1
             while pos <= sieve_len
-                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos) - logp, pos)
+                sieve[pos] -= logp
                 pos += p
             end
         end
