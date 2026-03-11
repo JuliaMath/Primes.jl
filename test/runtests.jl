@@ -511,3 +511,74 @@ end
     end
     @test primes(2^31-20, 2^31-1) == [2147483629, 2147483647]
 end
+
+# --- Tests for large integer factorization (002-large-int-factorization) ---
+
+@testset "Perfect power check" begin
+    @test Primes._check_perfect_power(4) == (2, 2)
+    @test Primes._check_perfect_power(27) == (3, 3)
+    @test Primes._check_perfect_power(7776) == (6, 5)
+    @test Primes._check_perfect_power(15) === nothing
+    @test Primes._check_perfect_power(BigInt(2)^11) == (BigInt(2), 11)
+    @test Primes._check_perfect_power(BigInt(7)^7) == (BigInt(7), 7)
+    @test Primes._check_perfect_power(BigInt(10)^3) == (BigInt(10), 3)
+    @test Primes._check_perfect_power(BigInt(17)) === nothing
+end
+
+@testset "Polyalgorithm dispatch" begin
+    # Perfect power path
+    p = nextprime(big"100000007")
+    n2 = p^2
+    f2 = Primes._find_factor(n2)
+    @test f2 == p
+end
+
+@testset "ECM factorization" begin
+    # Semi-prime with a ~40-bit factor
+    p1 = big"824633720831"   # 40-bit prime
+    q1 = big"1000000007"     # 30-bit prime
+    n1 = p1 * q1
+    f1 = factor(n1)
+    @test prodfactors(f1) == n1
+    @test all(isprime(p) for (p, _) in f1)
+
+    # p ~40 bits, q ~80 bits
+    p2 = big"824633720831"
+    q2 = big"1180591620717411303449"  # ~80-bit prime
+    n2 = p2 * q2
+    f2 = factor(n2)
+    @test prodfactors(f2) == n2
+    @test all(isprime(p) for (p, _) in f2)
+end
+
+@testset "MPQS factorization" begin
+    # Semi-prime with two ~60-bit factors
+    p1 = big"780002082420426809"
+    q1 = big"810735269523504809437013569"
+    n1 = p1 * q1
+    f1 = factor(n1)
+    @test prodfactors(f1) == n1
+    @test all(isprime(p) for (p, _) in f1)
+end
+
+@testset "BigInt factorization" begin
+    # factor(BigInt(n)) returns Factorization{BigInt}
+    n1 = big"2152302898747"
+    f1 = factor(n1)
+    @test f1 isa Primes.Factorization{BigInt}
+    @test prodfactors(f1) == n1
+
+    # BigInt prime returns single-entry
+    p = big"359334085968622831041960188598043661065388726959079837"
+    f2 = factor(p)
+    @test length(f2) == 1
+    @test first(f2) == (p => 1)
+end
+
+@testset "Large semi-prime factorization (#159)" begin
+    n = big"632459103267572196107100983820469021721602147490918660274601"
+    f = factor(n)
+    @test prodfactors(f) == n
+    @test all(isprime(p) for (p, _) in f)
+    @test length(f) == 2  # it's a semi-prime
+end

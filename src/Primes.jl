@@ -12,6 +12,9 @@ export isprime, primes, primesmask, factor, eachfactor, divisors, ismersenneprim
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
 include("factorization.jl")
+include("polyalgorithm.jl")
+include("ecm.jl")
+include("mpqs.jl")
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes
@@ -392,8 +395,13 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     if n <= 2^32 || isprime(n)
         return (n, 1), (T(1), n)
     end
-    should_widen = T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n)
-    p = should_widen ? pollardfactor(n) : pollardfactor(widen(n))
+    # For large cofactors, use polyalgorithm dispatch (ECM → MPQS)
+    if n > big"100000000000000000000"  # > 10^20
+        p = _find_factor(n)
+    else
+        should_widen = T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n)
+        p = should_widen ? pollardfactor(n) : pollardfactor(widen(n))
+    end
     num_p = 0
     while true
         q, r = divrem(n, p)
