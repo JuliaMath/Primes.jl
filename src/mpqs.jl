@@ -316,31 +316,6 @@ function _mpz_fdiv_ui(n::BigInt, d::Culong)::Culong
 end
 
 """
-Pollard rho factorization for small composites (used for double large prime splitting).
-Returns a non-trivial factor or nothing. Caller must ensure n is composite.
-"""
-function _pollard_rho_small(n::BigInt)::Union{BigInt, Nothing}
-    # Quick trial division for very small factors
-    for p in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47)
-        if rem(n, p) == 0
-            return BigInt(p)
-        end
-    end
-    x = BigInt(2)
-    y = BigInt(2)
-    d = BigInt(1)
-    c = BigInt(1)
-    for _ in 1:10000
-        x = mod(x * x + c, n)
-        y = mod(y * y + c, n)
-        y = mod(y * y + c, n)
-        d = gcd(abs(x - y), n)
-        isone(d) || break
-    end
-    (d > 1 && d < n) ? d : nothing
-end
-
-"""
 Root-guided trial factoring with preallocated buffers.
 `exponents` and `full_exp` are zeroed and filled in-place to avoid allocation.
 `remainder` is a preallocated BigInt used as scratch space.
@@ -447,7 +422,7 @@ Returns a SmoothRelation (copying the buffers) or nothing.
         end
     elseif remainder <= dlp_bound_sq && remainder > 1 && !isprime(Int(remainder))
         # Double large prime: try to split composite remainder into two primes
-        f = _pollard_rho_small(remainder)
+        f = pollardfactor(remainder)
         if f !== nothing
             p1 = Int(min(f, div(remainder, f)))
             p2 = Int(max(f, div(remainder, f)))
@@ -754,6 +729,7 @@ function _siqs_sieve!(sieve::Vector{UInt8}, sieve_len::Int,
         end
     end
 
+    sieve_ptr = pointer(sieve)
     @inbounds for j in sieve_start_idx:fb_size
         p = factor_base[j]
         logp = log_primes[j]
@@ -766,24 +742,24 @@ function _siqs_sieve!(sieve::Vector{UInt8}, sieve_len::Int,
             pos1 = s1
             pos2 = s2
             while pos1 <= sieve_len && pos2 <= sieve_len
-                sieve[pos1] -= logp
-                sieve[pos2] -= logp
+                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos1) - logp, pos1)
+                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos2) - logp, pos2)
                 pos1 += p
                 pos2 += p
             end
             while pos1 <= sieve_len
-                sieve[pos1] -= logp
+                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos1) - logp, pos1)
                 pos1 += p
             end
             while pos2 <= sieve_len
-                sieve[pos2] -= logp
+                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos2) - logp, pos2)
                 pos2 += p
             end
         else
             # Single root (p | a)
             pos = s1
             while pos <= sieve_len
-                sieve[pos] -= logp
+                unsafe_store!(sieve_ptr, unsafe_load(sieve_ptr, pos) - logp, pos)
                 pos += p
             end
         end
