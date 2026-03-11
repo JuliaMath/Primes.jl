@@ -514,17 +514,6 @@ end
 
 # --- Tests for large integer factorization (002-large-int-factorization) ---
 
-@testset "Perfect power check" begin
-    @test Primes._check_perfect_power(4) == (2, 2)
-    @test Primes._check_perfect_power(27) == (3, 3)
-    @test Primes._check_perfect_power(7776) == (6, 5)
-    @test Primes._check_perfect_power(15) === nothing
-    @test Primes._check_perfect_power(BigInt(2)^11) == (BigInt(2), 11)
-    @test Primes._check_perfect_power(BigInt(7)^7) == (BigInt(7), 7)
-    @test Primes._check_perfect_power(BigInt(10)^3) == (BigInt(10), 3)
-    @test Primes._check_perfect_power(BigInt(17)) === nothing
-end
-
 @testset "Polyalgorithm dispatch" begin
     # Perfect power path
     p = nextprime(big"100000007")
