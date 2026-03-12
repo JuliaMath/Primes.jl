@@ -7,7 +7,8 @@ makedocs(
     checkdocs = :none,
     pages = Any[
         "Home" => "index.md",
-        "Functions" => "api.md"
+        "Functions" => "api.md",
+        "Benchmarks" => "benchmarks.md"
     ],
 )
 

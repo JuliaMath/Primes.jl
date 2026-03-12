@@ -14,13 +14,20 @@
 
 !src/
 !src/*.jl
+
 !test/
 !test/*.jl
+
 !docs/
 !docs/src/
 !docs/src/*.md
 !docs/make.jl
 !docs/Project.toml
+
+!benchmarks/
+!benchmarks/*.jl
+!benchmarks/Project.toml
+!benchmarks/README.md
 
 ### Denied even if allowed above ###
 
