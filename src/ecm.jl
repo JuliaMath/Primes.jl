@@ -230,16 +230,236 @@ function _ecm_scalar_mul(k::Integer, PX::T, PZ::T, n::T, a24::T) where {T<:Integ
 end
 
 # =============================================================================
+# Stage 2: standard continuation (baby-step giant-step).
+#
+# After Stage 1 computes Q = [∏ p^k ≤ B1] P, Stage 2 checks whether the
+# group order has exactly one prime factor p in (B1, B2].  Uses a stride D
+# and precomputed baby-step table [d]Q for d ∈ {1,3,5,...,D-1} with gcd(d,6)=1
+# to cover all primes in the interval with only differential additions.
+#
+# Ref: Montgomery (1987) §10, Brent (1986) "Some integer factorization
+#      algorithms using elliptic curves".
+# =============================================================================
+
+# Baby-step offsets: odd values d with 1 ≤ d < D and gcd(d, 6) == 1.
+function _stage2_baby_offsets(D::Int)
+    [d for d in 1:2:(D-1) if gcd(d, 6) == 1]
+end
+
+# Generic Stage 2 continuation.
+# Returns a non-trivial factor of n, or nothing.
+function _ecm_stage2(QX::T, QZ::T, n::T, a24::T, B1::Int, B2::Int) where {T<:Integer}
+    D = 2 * isqrt(B2 - B1 + 1)
+    D = max(D, 6)
+    # Round D up to next multiple of 6 for alignment with prime residues.
+    D = D + (6 - mod(D, 6)) % 6
+
+    offsets = _stage2_baby_offsets(D)
+    isempty(offsets) && return nothing
+
+    # Precompute baby-step table: baby[d] = [d]Q for each offset d.
+    # Also need [2]Q for building the table via differential addition chain.
+    S2X, S2Z = _ecm_double(QX, QZ, n, a24)  # [2]Q
+
+    # Build multiples of Q: muls[k] = [k]Q for k = 1, 2, ..., max(D-1, D)
+    # We only need odd multiples with gcd(d,6)==1, but building a full table
+    # up to D is simpler and the table is small.
+    max_d = maximum(offsets)
+    # mulX[k], mulZ[k] = [k]Q
+    mulX = Vector{T}(undef, max_d)
+    mulZ = Vector{T}(undef, max_d)
+    mulX[1], mulZ[1] = QX, QZ
+    if max_d >= 2
+        mulX[2], mulZ[2] = S2X, S2Z
+    end
+    for k in 3:max_d
+        # [k]Q = [k-1]Q + [1]Q, diff = [k-2]Q
+        mulX[k], mulZ[k] = _ecm_add(mulX[k-1], mulZ[k-1], QX, QZ,
+                                      mulX[k-2], mulZ[k-2], n)
+    end
+
+    # Precompute [D]Q for giant steps.
+    # Build [D]Q using the ladder.
+    DX, DZ = _ecm_scalar_mul(D, QX, QZ, n, a24)
+
+    # Giant step: start at the first multiple of D above B1.
+    # For each giant step center c = j*D, check primes c ± d for d ∈ offsets.
+    j_start = div(B1, D) + 1
+    j_end   = div(B2, D) + 1
+
+    # Compute R = [j_start * D]Q
+    RX, RZ = _ecm_scalar_mul(j_start * D, QX, QZ, n, a24)
+
+    # We also need the previous giant step for differential addition:
+    # Rprev = [(j_start - 1) * D]Q
+    RprevX, RprevZ = _ecm_scalar_mul((j_start - 1) * D, QX, QZ, n, a24)
+
+    acc = one(T)
+    batch_count = 0
+
+    for j in j_start:j_end
+        c = j * D
+        for d in offsets
+            p_plus  = c + d
+            p_minus = c - d
+            # Only check values in (B1, B2].
+            if B1 < p_plus <= B2
+                # The factor reveals itself when [p]Q = O, i.e. Z = 0.
+                # With R = [c]Q, baby = [d]Q:
+                # [c+d]Q and [c-d]Q share the property that their Z-coords
+                # vanish iff c±d divides the group order.
+                # The key identity: for Montgomery curves,
+                #   X([c]Q) * Z([d]Q) - Z([c]Q) * X([d]Q) = 0
+                # iff [c-d]Q or [c+d]Q is the point at infinity.
+                # We accumulate: acc *= (R_X * baby_Z - R_Z * baby_X)
+                val = _submod(_mulmod(RX, mulZ[d], n), _mulmod(RZ, mulX[d], n), n)
+                acc = _mulmod(acc, val, n)
+                batch_count += 1
+            end
+            if B1 < p_minus <= B2 && p_minus != p_plus
+                val = _submod(_mulmod(RX, mulZ[d], n), _mulmod(RZ, mulX[d], n), n)
+                # For c-d we use the same identity (same expression).
+                acc = _mulmod(acc, val, n)
+                batch_count += 1
+            end
+        end
+
+        if batch_count >= 100
+            g = gcd(acc, n)
+            1 < g < n && return g
+            g == n && return nothing  # degenerate
+            acc = one(T)
+            batch_count = 0
+        end
+
+        # Advance giant step: R_next = R + [D]Q, diff = R_prev
+        if j < j_end
+            RnextX, RnextZ = _ecm_add(RX, RZ, DX, DZ, RprevX, RprevZ, n)
+            RprevX, RprevZ = RX, RZ
+            RX, RZ = RnextX, RnextZ
+        end
+    end
+
+    # Final GCD check
+    if batch_count > 0
+        g = gcd(acc, n)
+        1 < g < n && return g
+    end
+    return nothing
+end
+
+# BigInt GMP in-place Stage 2 continuation.
+function _ecm_stage2!(Q_X::BigInt, Q_Z::BigInt, n::BigInt, a24::BigInt,
+                      B1::Int, B2::Int, buf::ECMBuffers)::Union{BigInt, Nothing}
+    D = 2 * isqrt(B2 - B1 + 1)
+    D = max(D, 6)
+    D = D + (6 - mod(D, 6)) % 6
+
+    offsets = _stage2_baby_offsets(D)
+    isempty(offsets) && return nothing
+
+    max_d = maximum(offsets)
+
+    # Precompute baby-step table (vectors of BigInt).
+    mulX = [BigInt() for _ in 1:max_d]
+    mulZ = [BigInt() for _ in 1:max_d]
+    Base.GMP.MPZ.set!(mulX[1], Q_X)
+    Base.GMP.MPZ.set!(mulZ[1], Q_Z)
+
+    # [2]Q
+    S2X, S2Z = BigInt(), BigInt()
+    _ecm_double!(S2X, S2Z, Q_X, Q_Z, n, a24, buf)
+    if max_d >= 2
+        Base.GMP.MPZ.set!(mulX[2], S2X)
+        Base.GMP.MPZ.set!(mulZ[2], S2Z)
+    end
+    for k in 3:max_d
+        _ecm_add!(mulX[k], mulZ[k], mulX[k-1], mulZ[k-1], Q_X, Q_Z,
+                  mulX[k-2], mulZ[k-2], n, buf)
+    end
+
+    # [D]Q via scalar multiplication
+    DX, DZ = BigInt(), BigInt()
+    _ecm_scalar_mul!(DX, DZ, D, Q_X, Q_Z, n, a24, buf)
+
+    # Giant step state
+    j_start = div(B1, D) + 1
+    j_end   = div(B2, D) + 1
+
+    RX, RZ = BigInt(), BigInt()
+    _ecm_scalar_mul!(RX, RZ, j_start * D, Q_X, Q_Z, n, a24, buf)
+
+    RprevX, RprevZ = BigInt(), BigInt()
+    _ecm_scalar_mul!(RprevX, RprevZ, (j_start - 1) * D, Q_X, Q_Z, n, a24, buf)
+
+    RnextX, RnextZ = BigInt(), BigInt()
+    acc = BigInt(1)
+    tmp_mul = BigInt()
+    tmp1 = BigInt()
+    tmp2 = BigInt()
+    batch_count = 0
+
+    for j in j_start:j_end
+        c = j * D
+        for d in offsets
+            p_plus  = c + d
+            p_minus = c - d
+            if B1 < p_plus <= B2
+                # val = R_X * baby_Z - R_Z * baby_X  (mod n)
+                _mulmod!(tmp1, RX, mulZ[d], n, tmp_mul)
+                _mulmod!(tmp2, RZ, mulX[d], n, tmp_mul)
+                Base.GMP.MPZ.sub!(tmp1, tmp2)
+                Base.GMP.MPZ.mul!(tmp_mul, acc, tmp1)
+                _mpz_fdiv_r!(acc, tmp_mul, n)
+                batch_count += 1
+            end
+            if B1 < p_minus <= B2 && p_minus != p_plus
+                _mulmod!(tmp1, RX, mulZ[d], n, tmp_mul)
+                _mulmod!(tmp2, RZ, mulX[d], n, tmp_mul)
+                Base.GMP.MPZ.sub!(tmp1, tmp2)
+                Base.GMP.MPZ.mul!(tmp_mul, acc, tmp1)
+                _mpz_fdiv_r!(acc, tmp_mul, n)
+                batch_count += 1
+            end
+        end
+
+        if batch_count >= 100
+            g = gcd(acc, n)
+            1 < g < n && return g
+            g == n && return nothing
+            Base.GMP.MPZ.set_si!(acc, 1)
+            batch_count = 0
+        end
+
+        if j < j_end
+            _ecm_add!(RnextX, RnextZ, RX, RZ, DX, DZ, RprevX, RprevZ, n, buf)
+            Base.GMP.MPZ.set!(RprevX, RX)
+            Base.GMP.MPZ.set!(RprevZ, RZ)
+            Base.GMP.MPZ.set!(RX, RnextX)
+            Base.GMP.MPZ.set!(RZ, RnextZ)
+        end
+    end
+
+    if batch_count > 0
+        g = gcd(acc, n)
+        1 < g < n && return g
+    end
+    return nothing
+end
+
+# =============================================================================
 # Public API
 # =============================================================================
 
 """
     ecm_factor(n::T, B1::Int, num_curves::Int) where {T<:Integer} -> Union{T, Nothing}
 
-Attempt to find a non-trivial factor of `n` using the Elliptic Curve Method (ECM).
+Attempt to find a non-trivial factor of `n` using the Elliptic Curve Method (ECM)
+with Stage 1 (bound `B1`) and Stage 2 continuation (bound `B2 = 100 * B1`).
 
 Uses Montgomery curves with Suyama's parametrization and a batched GCD to reduce
-the number of `gcd` calls in the inner loop.
+the number of `gcd` calls in the inner loop.  Stage 2 uses a baby-step giant-step
+approach to efficiently check primes in `(B1, B2]`.
 
 This generic method works for any integer type `T`, including fixed-width types from
 [BitIntegers.jl](https://github.com/rfourquet/BitIntegers.jl) (e.g. `UInt256`, `UInt512`).
@@ -252,6 +472,7 @@ See also the `BigInt`-optimised overload which uses in-place GMP arithmetic.
 """
 function ecm_factor(n::T, B1::Int, num_curves::Int) where {T<:Integer}
     prime_powers = _ecm_prime_powers(B1)
+    B2 = 100 * B1
 
     for _ in 1:num_curves
         curve = _ecm_suyama(n)
@@ -288,7 +509,12 @@ function ecm_factor(n::T, B1::Int, num_curves::Int) where {T<:Integer}
         if batch_count > 0
             g = gcd(acc, n)
             1 < g < n && return g
+            g == n && continue
         end
+
+        # Stage 2: standard continuation for primes in (B1, B2].
+        s2 = _ecm_stage2(QX, QZ, n, a24, B1, B2)
+        s2 !== nothing && return s2
     end
     return nothing
 end
@@ -297,12 +523,14 @@ end
     ecm_factor(n::BigInt, B1::Int, num_curves::Int) -> Union{BigInt, Nothing}
 
 BigInt-optimised ECM using in-place GMP arithmetic to minimise allocations in the
-hot Montgomery ladder loop.  For fixed-width integer types use the generic method.
+hot Montgomery ladder loop.  Includes Stage 2 continuation (`B2 = 100 * B1`) using
+baby-step giant-step.  For fixed-width integer types use the generic method.
 
 Returns a non-trivial factor of `n`, or `nothing` if none is found within the budget.
 """
 function ecm_factor(n::BigInt, B1::Int, num_curves::Int)::Union{BigInt, Nothing}
     prime_powers = _ecm_prime_powers(B1)
+    B2 = 100 * B1
 
     buf     = ECMBuffers()
     Q_X     = BigInt()
@@ -346,7 +574,12 @@ function ecm_factor(n::BigInt, B1::Int, num_curves::Int)::Union{BigInt, Nothing}
         if batch_count > 0
             g = gcd(acc, n)
             1 < g < n && return g
+            g == n && continue
         end
+
+        # Stage 2: standard continuation for primes in (B1, B2].
+        s2 = _ecm_stage2!(Q_X, Q_Z, n, a24, B1, B2, buf)
+        s2 !== nothing && return s2
     end
     return nothing
 end

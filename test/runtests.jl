@@ -567,6 +567,84 @@ end
     # May or may not find a factor with just 1 curve — no assertion on result
 end
 
+@testset "ECM Stage 2" begin
+    # Stage 2 should improve success rate for low B1 values where Stage 1
+    # alone frequently fails. With B1=200 and B2=100*B1, the continuation
+    # catches group orders with one large prime factor in (B1, B2].
+
+    n = big"824633720831" * big"1000000007"
+
+    # With B1=200 and many curves, Stage 2 should find the factor reliably.
+    # (Stage 1 alone at B1=200 finds it only ~8% of the time per 5-curve attempt.)
+    result = Primes.ecm_factor(n, 200, 50)
+    @test result !== nothing
+    @test mod(n, result) == 0
+
+    # BigInt path: verify GMP in-place Stage 2 works
+    n_big = big"1000000007" * big"1000000009"
+    result_big = Primes.ecm_factor(n_big, 200, 50)
+    @test result_big !== nothing
+    @test mod(n_big, result_big) == 0
+
+    # Generic path: UInt128
+    n_u128 = UInt128(1_000_000_007) * UInt128(1_000_000_009)
+    result_u128 = Primes.ecm_factor(n_u128, 200, 50)
+    @test result_u128 !== nothing
+    @test mod(n_u128, result_u128) == 0
+    @test result_u128 isa UInt128
+end
+
+@testset "ECM Stage 2 finds factors Stage 1 misses" begin
+    # Run Stage 1 alone on many curves with low B1.  Collect curves where
+    # Stage 1 failed (gcd == 1), then run Stage 2 on those and verify it
+    # finds at least one factor that Stage 1 could not.
+    n = big"824633720831" * big"1000000007"
+    B1 = 200
+    B2 = 100 * B1
+    pp = Primes._ecm_prime_powers(B1)
+
+    stage1_only_found  = 0
+    stage2_extra_found = 0
+    curves_tested      = 0
+    stage1_missed      = 0
+
+    for _ in 1:200
+        curve = Primes._ecm_suyama(n)
+        curve === nothing && continue
+        !(curve isa Tuple) && continue
+        x0, z0, a24 = curve
+        curves_tested += 1
+
+        # Run Stage 1 manually
+        QX, QZ = x0, z0
+        for pk in pp
+            QX, QZ = Primes._ecm_scalar_mul(pk, QX, QZ, n, a24)
+        end
+        g1 = gcd(QZ, n)
+        if 1 < g1 < n
+            stage1_only_found += 1
+            continue
+        end
+
+        # Stage 1 did not find a factor on this curve
+        stage1_missed += 1
+
+        # Now run Stage 2 on the same post-Stage-1 point
+        s2 = Primes._ecm_stage2(QX, QZ, n, a24, B1, B2)
+        if s2 !== nothing && 1 < s2 < n
+            stage2_extra_found += 1
+            @test mod(n, s2) == 0
+        end
+    end
+
+    # With B1=200 on this number, Stage 1 finds ~8% of curves.
+    # Stage 2 should rescue additional curves, proving it adds value.
+    @test curves_tested >= 100  # enough curves for a meaningful test
+    @test stage1_missed > 0     # Stage 1 didn't find everything
+    @test stage2_extra_found > 0  # Stage 2 found at least one that Stage 1 missed
+    @test stage2_extra_found > stage1_only_found  # Stage 2 rescues more than Stage 1 found
+end
+
 @testset "ECM generic integer types" begin
     # UInt128: widen(UInt128) == BigInt in base Julia — exercises the generic
     # _mulmod/_addmod/_submod helpers via the BigInt widen path.
