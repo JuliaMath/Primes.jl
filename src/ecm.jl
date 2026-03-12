@@ -27,8 +27,7 @@ end
 # Uses widen(T) to avoid overflow for fixed-width integers.
 # For BigInt, widen returns BigInt itself, so this is simply mod(a * b, n).
 @inline function _mulmod(a::T, b::T, n::T) where {T<:Integer}
-    W = widen(T)
-    T(mod(W(a) * W(b), W(n)))
+    mod(a * b, n)
 end
 
 # =============================================================================
