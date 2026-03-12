@@ -555,7 +555,7 @@ end
 end
 
 @testset "ECM edge cases" begin
-    # ECM with a small semi-prime
+    # ECM with a small semi-prime (BigInt path — GMP in-place)
     n = big"1000000007" * big"1000000009"
     result = Primes.ecm_factor(n, 2000, 50)
     @test result !== nothing
@@ -565,4 +565,36 @@ end
     hard = nextprime(big"10"^30) * nextprime(big"10"^30 + 1000)
     result2 = Primes.ecm_factor(hard, 100, 1)
     # May or may not find a factor with just 1 curve — no assertion on result
+end
+
+@testset "ECM generic integer types" begin
+    # UInt128: widen(UInt128) == BigInt in base Julia — exercises the generic
+    # _mulmod/_addmod/_submod helpers via the BigInt widen path.
+    p = UInt128(1_000_000_007) * UInt128(999_999_937)
+    q = UInt128(1_000_000_009)
+    n = p * q
+    result = Primes.ecm_factor(n, 2000, 50)
+    @test result !== nothing
+    @test mod(n, result) == 0
+    @test result isa UInt128
+
+    # UInt256 / UInt512 from BitIntegers.jl: widen stays in LLVM fixed-width
+    # integers (UInt256 → UInt512), so no BigInt allocation in the inner loop.
+    using BitIntegers
+    p256 = UInt256(1_000_000_007) * UInt256(999_999_937)
+    q256 = UInt256(1_000_000_009)
+    n256 = p256 * q256
+    r256 = Primes.ecm_factor(n256, 2000, 50)
+    @test r256 !== nothing
+    @test mod(n256, r256) == 0
+    @test r256 isa UInt256
+
+    # Int256 (signed BitIntegers type)
+    p256s = Int256(1_000_000_007) * Int256(999_999_937)
+    q256s = Int256(1_000_000_009)
+    n256s = p256s * q256s
+    r256s = Primes.ecm_factor(n256s, 2000, 50)
+    @test r256s !== nothing
+    @test mod(n256s, r256s) == 0
+    @test r256s isa Int256
 end

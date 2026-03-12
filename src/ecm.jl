@@ -2,27 +2,47 @@
 # Ref: Lenstra (1987) "Factoring integers with elliptic curves"
 # Ref: Montgomery (1987) "Speeding the Pollard and Elliptic Curve Methods of Factorization"
 
-"""
-Point on a Montgomery curve in projective coordinates (X:Z).
-The point at infinity is represented by Z == 0.
-"""
-struct MontgomeryCurvePoint
-    X::BigInt
-    Z::BigInt
+# =============================================================================
+# Generic modular arithmetic helpers (work for any T<:Integer, including
+# fixed-width types from BitIntegers.jl such as UInt256, UInt512, etc.)
+# Uses widen(T) for overflow-safe multiplication; for BitIntegers types,
+# widen returns the next fixed-width type (e.g. widen(UInt256) == UInt512),
+# so no BigInt allocation occurs.
+# =============================================================================
+
+# Modular addition: (a + b) mod n, for a, b ∈ [0, n).
+# Safe as long as a + b does not overflow T, which holds when n ≪ typemax(T).
+@inline function _addmod(a::T, b::T, n::T) where {T<:Integer}
+    r = a + b
+    r >= n ? r - n : r
 end
 
-"""
-In-place modular reduction: sets r = n mod d (non-negative remainder).
-"""
+# Modular subtraction: (a - b) mod n, for a, b ∈ [0, n).
+# Written as n - (b - a) when a < b to avoid underflow in unsigned types.
+@inline function _submod(a::T, b::T, n::T) where {T<:Integer}
+    a >= b ? a - b : n - (b - a)
+end
+
+# Modular multiplication: (a * b) mod n.
+# Uses widen(T) to avoid overflow for fixed-width integers.
+# For BigInt, widen returns BigInt itself, so this is simply mod(a * b, n).
+@inline function _mulmod(a::T, b::T, n::T) where {T<:Integer}
+    W = widen(T)
+    T(mod(W(a) * W(b), W(n)))
+end
+
+# =============================================================================
+# GMP-optimized path for BigInt: in-place arithmetic avoids allocations in
+# the hot Montgomery ladder loop, which matters for large-integer factoring.
+# =============================================================================
+
+# In-place modular reduction: r = n mod d (non-negative remainder).
 function _mpz_fdiv_r!(r::BigInt, n::BigInt, d::BigInt)
     ccall((:__gmpz_fdiv_r, :libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Ref{BigInt}), r, n, d)
 end
 
-"""
-Preallocated scratch space for ECM point arithmetic.
-Avoids BigInt allocation in the hot Montgomery ladder loop.
-t1-t6: scratch for add!/double!; R0/R1/tmp: scratch for scalar_mul!
-"""
+# Preallocated scratch space for the BigInt ECM inner loop.
+# t1–t6: scratch for add!/double!; R0/R1/tmp: scratch for scalar_mul!
 struct ECMBuffers
     t1::BigInt
     t2::BigInt
@@ -41,89 +61,58 @@ end
 ECMBuffers() = ECMBuffers(BigInt(), BigInt(), BigInt(), BigInt(), BigInt(), BigInt(),
                           BigInt(), BigInt(), BigInt(), BigInt(), BigInt(), BigInt())
 
-"""
-In-place: mulmod!(dst, a, b, n, tmp) sets dst = (a * b) mod n using tmp as scratch.
-"""
+# In-place: dst = (a * b) mod n, using tmp as scratch.
 @inline function _mulmod!(dst::BigInt, a::BigInt, b::BigInt, n::BigInt, tmp::BigInt)
     Base.GMP.MPZ.mul!(tmp, a, b)
     _mpz_fdiv_r!(dst, tmp, n)
 end
 
-"""
-Differential addition on Montgomery curve: given P, Q and P-Q, compute P+Q.
-Uses projective coordinates and in-place arithmetic to avoid allocations.
-"""
+# Differential addition on Montgomery curve (BigInt in-place version).
+# Given projective P, Q and their difference P-Q (as diff), computes P+Q.
 function _ecm_add!(res_X::BigInt, res_Z::BigInt,
                    P_X::BigInt, P_Z::BigInt, Q_X::BigInt, Q_Z::BigInt,
                    diff_X::BigInt, diff_Z::BigInt, n::BigInt, buf::ECMBuffers)
     t1, t2, t3, t4, t5, t6 = buf.t1, buf.t2, buf.t3, buf.t4, buf.t5, buf.t6
-    # u = (P.X - P.Z) * (Q.X + Q.Z) mod n
-    Base.GMP.MPZ.sub!(t1, P_X, P_Z)         # t1 = P.X - P.Z
-    Base.GMP.MPZ.add!(t2, Q_X, Q_Z)         # t2 = Q.X + Q.Z
-    _mulmod!(t5, t1, t2, n, t3)             # t5 = u
-
-    # v = (P.X + P.Z) * (Q.X - Q.Z) mod n
-    Base.GMP.MPZ.add!(t1, P_X, P_Z)         # t1 = P.X + P.Z
-    Base.GMP.MPZ.sub!(t2, Q_X, Q_Z)         # t2 = Q.X - Q.Z
-    _mulmod!(t6, t1, t2, n, t3)             # t6 = v
-
-    # add = u + v, sub = u - v
-    Base.GMP.MPZ.add!(t1, t5, t6)           # t1 = add = u + v
-    Base.GMP.MPZ.sub!(t2, t5, t6)           # t2 = sub = u - v
-
-    # X = diff.Z * add^2 mod n
-    _mulmod!(t3, t1, t1, n, t4)             # t3 = add^2 mod n
-    _mulmod!(res_X, diff_Z, t3, n, t4)      # res_X = diff.Z * add^2 mod n
-
-    # Z = diff.X * sub^2 mod n
-    _mulmod!(t3, t2, t2, n, t4)             # t3 = sub^2 mod n
-    _mulmod!(res_Z, diff_X, t3, n, t4)      # res_Z = diff.X * sub^2 mod n
+    Base.GMP.MPZ.sub!(t1, P_X, P_Z)
+    Base.GMP.MPZ.add!(t2, Q_X, Q_Z)
+    _mulmod!(t5, t1, t2, n, t3)             # t5 = (P.X-P.Z)(Q.X+Q.Z) mod n
+    Base.GMP.MPZ.add!(t1, P_X, P_Z)
+    Base.GMP.MPZ.sub!(t2, Q_X, Q_Z)
+    _mulmod!(t6, t1, t2, n, t3)             # t6 = (P.X+P.Z)(Q.X-Q.Z) mod n
+    Base.GMP.MPZ.add!(t1, t5, t6)           # t1 = t5 + t6
+    Base.GMP.MPZ.sub!(t2, t5, t6)           # t2 = t5 - t6
+    _mulmod!(t3, t1, t1, n, t4)
+    _mulmod!(res_X, diff_Z, t3, n, t4)      # res_X = diff.Z * (t5+t6)^2 mod n
+    _mulmod!(t3, t2, t2, n, t4)
+    _mulmod!(res_Z, diff_X, t3, n, t4)      # res_Z = diff.X * (t5-t6)^2 mod n
 end
 
-"""
-In-place point doubling on Montgomery curve with parameter a24 = (a+2)/4.
-"""
+# Point doubling on Montgomery curve with a24 = (a+2)/4 (BigInt in-place version).
 function _ecm_double!(res_X::BigInt, res_Z::BigInt,
                       P_X::BigInt, P_Z::BigInt,
                       n::BigInt, a24::BigInt, buf::ECMBuffers)
     t1, t2, t3, t4, t5, t6 = buf.t1, buf.t2, buf.t3, buf.t4, buf.t5, buf.t6
-    # u = (P.X + P.Z)^2 mod n
-    Base.GMP.MPZ.add!(t1, P_X, P_Z)         # t1 = P.X + P.Z
-    _mulmod!(t5, t1, t1, n, t3)             # t5 = u = (P.X+P.Z)^2 mod n
-
-    # v = (P.X - P.Z)^2 mod n
-    Base.GMP.MPZ.sub!(t1, P_X, P_Z)         # t1 = P.X - P.Z
-    _mulmod!(t6, t1, t1, n, t3)             # t6 = v = (P.X-P.Z)^2 mod n
-
-    # diff = u - v
-    Base.GMP.MPZ.sub!(t1, t5, t6)           # t1 = diff = u - v
-
-    # X = u * v mod n
-    _mulmod!(res_X, t5, t6, n, t3)          # res_X = u * v mod n
-
-    # Z = diff * (v + a24 * diff) mod n
-    _mulmod!(t2, a24, t1, n, t3)            # t2 = a24 * diff mod n
-    Base.GMP.MPZ.add!(t2, t6)               # t2 = v + a24 * diff
-    _mulmod!(res_Z, t1, t2, n, t3)          # res_Z = diff * (v + a24*diff) mod n
+    Base.GMP.MPZ.add!(t1, P_X, P_Z)
+    _mulmod!(t5, t1, t1, n, t3)             # t5 = (P.X+P.Z)^2 mod n
+    Base.GMP.MPZ.sub!(t1, P_X, P_Z)
+    _mulmod!(t6, t1, t1, n, t3)             # t6 = (P.X-P.Z)^2 mod n
+    Base.GMP.MPZ.sub!(t1, t5, t6)           # t1 = t5 - t6
+    _mulmod!(res_X, t5, t6, n, t3)          # res_X = t5 * t6 mod n
+    _mulmod!(t2, a24, t1, n, t3)
+    Base.GMP.MPZ.add!(t2, t6)
+    _mulmod!(res_Z, t1, t2, n, t3)          # res_Z = (t5-t6) * (t6 + a24*(t5-t6)) mod n
 end
 
-"""
-Montgomery ladder scalar multiplication: compute [k]P on Montgomery curve.
-Uses preallocated buffers to avoid allocation in the inner loop.
-Returns the point [k]P as (res_X, res_Z).
-"""
+# Montgomery ladder scalar multiplication (BigInt in-place version).
 function _ecm_scalar_mul!(res_X::BigInt, res_Z::BigInt,
-                          k::BigInt, P_X::BigInt, P_Z::BigInt,
+                          k::Integer, P_X::BigInt, P_Z::BigInt,
                           n::BigInt, a24::BigInt, buf::ECMBuffers)
     R0_X, R0_Z = buf.R0_X, buf.R0_Z
     R1_X, R1_Z = buf.R1_X, buf.R1_Z
     tmp_X, tmp_Z = buf.tmp_X, buf.tmp_Z
-
-    # R0 = P, R1 = 2P
     Base.GMP.MPZ.set!(R0_X, P_X)
     Base.GMP.MPZ.set!(R0_Z, P_Z)
     _ecm_double!(R1_X, R1_Z, P_X, P_Z, n, a24, buf)
-
     bits = ndigits(k, base=2)
     for i in (bits - 2):-1:0
         if isodd(k >> i)
@@ -146,69 +135,206 @@ function _ecm_scalar_mul!(res_X::BigInt, res_Z::BigInt,
     Base.GMP.MPZ.set!(res_Z, R0_Z)
 end
 
-"""
-    ecm_factor(n::BigInt, B1::Int, num_curves::Int) -> Union{BigInt, Nothing}
+# =============================================================================
+# Generic ECM functions (functional style, no mutation).
+# Work for any T<:Integer; the compiler specialises for each concrete type.
+# For BitIntegers.jl types the widen chain stays in fixed-width LLVM integers,
+# making these significantly faster than going through BigInt.
+# =============================================================================
 
-Attempt to find a non-trivial factor of `n` using the Elliptic Curve Method.
-Computes [m]P where m = lcm(1..B1) = prod(p^floor(log_p(B1)) for p prime ≤ B1).
-Uses batched gcd (accumulate Z coordinates, check periodically) to reduce gcd calls.
-Returns a factor or `nothing` if none found within the curve budget.
+# Differential addition on Montgomery curve (generic version).
+# Given projective P=(PX:PZ), Q=(QX:QZ) and their difference P-Q=(diffX:diffZ),
+# returns (res_X, res_Z) = P+Q.
+function _ecm_add(PX::T, PZ::T, QX::T, QZ::T,
+                  diffX::T, diffZ::T, n::T) where {T<:Integer}
+    u = _mulmod(_submod(PX, PZ, n), _addmod(QX, QZ, n), n)
+    v = _mulmod(_addmod(PX, PZ, n), _submod(QX, QZ, n), n)
+    ad = _addmod(u, v, n)
+    sb = _submod(u, v, n)
+    resX = _mulmod(diffZ, _mulmod(ad, ad, n), n)
+    resZ = _mulmod(diffX, _mulmod(sb, sb, n), n)
+    resX, resZ
+end
+
+# Point doubling on Montgomery curve with a24 = (a+2)/4 (generic version).
+# Returns (res_X, res_Z).
+function _ecm_double(PX::T, PZ::T, n::T, a24::T) where {T<:Integer}
+    u = _mulmod(_addmod(PX, PZ, n), _addmod(PX, PZ, n), n)
+    v = _mulmod(_submod(PX, PZ, n), _submod(PX, PZ, n), n)
+    diff = _submod(u, v, n)
+    resX = _mulmod(u, v, n)
+    resZ = _mulmod(diff, _addmod(v, _mulmod(a24, diff, n), n), n)
+    resX, resZ
+end
+
+# Montgomery ladder scalar multiplication (generic version).
+# Computes [k]P on the Montgomery curve; k is a small integer (prime power ≤ B1).
+# Returns (res_X, res_Z).
+function _ecm_scalar_mul(k::Integer, PX::T, PZ::T, n::T, a24::T) where {T<:Integer}
+    R0X, R0Z = PX, PZ
+    R1X, R1Z = _ecm_double(PX, PZ, n, a24)
+    nbits = ndigits(k, base=2)
+    for i in (nbits - 2):-1:0
+        if isodd(k >> i)
+            tmpX, tmpZ = _ecm_add(R0X, R0Z, R1X, R1Z, PX, PZ, n)
+            R0X, R0Z = tmpX, tmpZ
+            R1X, R1Z = _ecm_double(R1X, R1Z, n, a24)
+        else
+            tmpX, tmpZ = _ecm_add(R0X, R0Z, R1X, R1Z, PX, PZ, n)
+            R1X, R1Z = tmpX, tmpZ
+            R0X, R0Z = _ecm_double(R0X, R0Z, n, a24)
+        end
+    end
+    R0X, R0Z
+end
+
+# =============================================================================
+# Public API
+# =============================================================================
+
 """
-function ecm_factor(n::BigInt, B1::Int, num_curves::Int)::Union{BigInt, Nothing}
-    # Precompute prime powers for Stage 1
-    prime_powers = BigInt[]
+    ecm_factor(n::T, B1::Int, num_curves::Int) where {T<:Integer} -> Union{T, Nothing}
+
+Attempt to find a non-trivial factor of `n` using the Elliptic Curve Method (ECM).
+
+Uses Montgomery curves with Suyama's parametrization and a batched GCD to reduce
+the number of `gcd` calls in the inner loop.
+
+This generic method works for any integer type `T`, including fixed-width types from
+[BitIntegers.jl](https://github.com/rfourquet/BitIntegers.jl) (e.g. `UInt256`, `UInt512`).
+For those types modular multiplication stays within fixed-width LLVM integers via
+`widen(T)`, avoiding BigInt allocation entirely.
+
+Returns a non-trivial factor of `n`, or `nothing` if none is found within the budget.
+
+See also the `BigInt`-optimised overload which uses in-place GMP arithmetic.
+"""
+function ecm_factor(n::T, B1::Int, num_curves::Int) where {T<:Integer}
+    # Precompute prime powers ≤ B1 as plain Int (they are small).
+    prime_powers = Int[]
     for p in primes(B1)
-        pk = BigInt(p)
+        pk = p
         while pk * p <= B1
             pk *= p
         end
         push!(prime_powers, pk)
     end
 
-    buf = ECMBuffers()
-    Q_X = BigInt()
-    Q_Z = BigInt()
-    tmp_mul = BigInt()  # scratch for acc * Q.Z
+    for _ in 1:num_curves
+        # Suyama's parametrization: generate a random curve and initial point.
+        σ = T(rand(6:10^9))
+        u  = _submod(_mulmod(σ, σ, n), T(5), n)          # (σ²-5) mod n
+        v  = _mulmod(T(4), σ, n)                          # 4σ mod n
+        x0 = _mulmod(_mulmod(u, u, n), u, n)              # u³ mod n
+        z0 = _mulmod(_mulmod(v, v, n), v, n)              # v³ mod n
+
+        vu_diff = _submod(v, u, n)
+        vu_diff3 = _mulmod(_mulmod(vu_diff, vu_diff, n), vu_diff, n)
+        a24_num = _mulmod(vu_diff3, _addmod(_mulmod(T(3), u, n), v, n), n)
+        a24_den = _mulmod(_mulmod(T(16), x0, n), v, n)
+
+        g = gcd(a24_den, n)
+        if 1 < g < n
+            return g
+        end
+        g == n && continue
+
+        a24_den_inv = invmod(a24_den, n)
+        a24 = _mulmod(a24_num, a24_den_inv, n)
+
+        QX, QZ = x0, z0
+
+        # Stage 1: multiply Q by each prime power, batching the GCD checks.
+        degenerate = false
+        acc = one(T)
+        batch_count = 0
+        for pk in prime_powers
+            QX, QZ = _ecm_scalar_mul(pk, QX, QZ, n, a24)
+            acc = _mulmod(acc, QZ, n)
+            batch_count += 1
+            if batch_count >= 100
+                g = gcd(acc, n)
+                if 1 < g < n
+                    return g
+                end
+                if g == n
+                    degenerate = true
+                    break
+                end
+                acc = one(T)
+                batch_count = 0
+            end
+        end
+
+        degenerate && continue
+
+        if batch_count > 0
+            g = gcd(acc, n)
+            1 < g < n && return g
+        end
+    end
+    return nothing
+end
+
+"""
+    ecm_factor(n::BigInt, B1::Int, num_curves::Int) -> Union{BigInt, Nothing}
+
+BigInt-optimised ECM using in-place GMP arithmetic to minimise allocations in the
+hot Montgomery ladder loop.  For fixed-width integer types use the generic method.
+
+Returns a non-trivial factor of `n`, or `nothing` if none is found within the budget.
+"""
+function ecm_factor(n::BigInt, B1::Int, num_curves::Int)::Union{BigInt, Nothing}
+    # Precompute prime powers for Stage 1.
+    prime_powers = Int[]
+    for p in primes(B1)
+        pk = p
+        while pk * p <= B1
+            pk *= p
+        end
+        push!(prime_powers, pk)
+    end
+
+    buf     = ECMBuffers()
+    Q_X     = BigInt()
+    Q_Z     = BigInt()
+    tmp_mul = BigInt()
 
     for _ in 1:num_curves
-        # Generate random curve via σ parameter (Suyama's parametrization)
-        σ = BigInt(rand(6:10^9))
-        u = mod(σ * σ - 5, n)
-        v = mod(4 * σ, n)
-        x0 = mod(u * u * u, n)
-        z0 = mod(v * v * v, n)
-
+        # Suyama's parametrization.
+        σ       = BigInt(rand(6:10^9))
+        u       = mod(σ * σ - 5, n)
+        v       = mod(4 * σ, n)
+        x0      = mod(u * u * u, n)
+        z0      = mod(v * v * v, n)
         vu_diff = mod(v - u, n)
         a24_num = mod(vu_diff^3 * mod(3 * u + v, n), n)
         a24_den = mod(16 * x0 * v, n)
 
         g = gcd(a24_den, n)
-        if g > 1 && g < n
+        if 1 < g < n
             return g
         end
-        if g == n
-            continue
-        end
+        g == n && continue
 
         a24_den_inv = invmod(a24_den, n)
-        a24 = mod(a24_num * a24_den_inv, n)
+        a24         = mod(a24_num * a24_den_inv, n)
 
         Base.GMP.MPZ.set!(Q_X, x0)
         Base.GMP.MPZ.set!(Q_Z, z0)
 
-        # Stage 1: multiply Q by each prime power, with batched gcd
-        degenerate = false
-        acc = BigInt(1)
+        # Stage 1: multiply Q by each prime power, with batched GCD.
+        degenerate  = false
+        acc         = BigInt(1)
         batch_count = 0
         for pk in prime_powers
             _ecm_scalar_mul!(Q_X, Q_Z, pk, Q_X, Q_Z, n, a24, buf)
             Base.GMP.MPZ.mul!(tmp_mul, acc, Q_Z)
             _mpz_fdiv_r!(acc, tmp_mul, n)
             batch_count += 1
-
             if batch_count >= 100
                 g = gcd(acc, n)
-                if g > 1 && g < n
+                if 1 < g < n
                     return g
                 end
                 if g == n
@@ -224,9 +350,7 @@ function ecm_factor(n::BigInt, B1::Int, num_curves::Int)::Union{BigInt, Nothing}
 
         if batch_count > 0
             g = gcd(acc, n)
-            if g > 1 && g < n
-                return g
-            end
+            1 < g < n && return g
         end
     end
     return nothing
