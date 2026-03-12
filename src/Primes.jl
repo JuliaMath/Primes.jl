@@ -12,6 +12,7 @@ export isprime, primes, primesmask, factor, eachfactor, divisors, ismersenneprim
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
 include("factorization.jl")
+include("ecm.jl")
 
 # Primes generating functions
 #     https://en.wikipedia.org/wiki/Sieve_of_Eratosthenes

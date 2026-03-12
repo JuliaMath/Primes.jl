@@ -511,3 +511,58 @@ end
     end
     @test primes(2^31-20, 2^31-1) == [2147483629, 2147483647]
 end
+
+@testset "ECM factorization" begin
+    # Semi-prime with a ~40-bit factor
+    p1 = big"824633720831"   # 40-bit prime
+    q1 = big"1000000007"     # 30-bit prime
+    n1 = p1 * q1
+    f1 = factor(n1)
+    @test prodfactors(f1) == n1
+    @test all(isprime(p) for (p, _) in f1)
+
+    # p ~40 bits, q ~80 bits
+    p2 = big"824633720831"
+    q2 = big"1180591620717411303449"  # ~80-bit prime
+    n2 = p2 * q2
+    f2 = factor(n2)
+    @test prodfactors(f2) == n2
+    @test all(isprime(p) for (p, _) in f2)
+end
+
+@testset "MPQS factorization" begin
+    # Semi-prime with two ~60-bit factors
+    p1 = big"780002082420426809"
+    q1 = big"810735269523504809437013569"
+    n1 = p1 * q1
+    f1 = factor(n1)
+    @test prodfactors(f1) == n1
+    @test all(isprime(p) for (p, _) in f1)
+end
+
+@testset "BigInt factorization" begin
+    # factor(BigInt(n)) returns Factorization{BigInt}
+    n1 = big"2152302898747"
+    f1 = factor(n1)
+    @test f1 isa Primes.Factorization{BigInt}
+    @test prodfactors(f1) == n1
+
+    # BigInt prime returns single-entry
+    p = big"359334085968622831041960188598043661065388726959079837"
+    f2 = factor(p)
+    @test length(f2) == 1
+    @test first(f2) == (p => 1)
+end
+
+@testset "ECM edge cases" begin
+    # ECM with a small semi-prime
+    n = big"1000000007" * big"1000000009"
+    result = Primes.ecm_factor(n, 2000, 50)
+    @test result !== nothing
+    @test mod(n, result) == 0
+
+    # ECM returns nothing when curves are insufficient for a hard number
+    hard = nextprime(big"10"^30) * nextprime(big"10"^30 + 1000)
+    result2 = Primes.ecm_factor(hard, 100, 1)
+    # May or may not find a factor with just 1 curve — no assertion on result
+end
