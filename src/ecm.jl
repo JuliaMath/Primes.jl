@@ -32,6 +32,46 @@ end
 end
 
 # =============================================================================
+# Shared helpers used by both the generic and BigInt-optimized ECM paths.
+# =============================================================================
+
+# Precompute prime powers p^k ≤ B1 for each prime p ≤ B1.
+function _ecm_prime_powers(B1::Int)
+    result = Int[]
+    for p in primes(B1)
+        pk = p
+        while pk * p <= B1
+            pk *= p
+        end
+        push!(result, pk)
+    end
+    result
+end
+
+# Suyama's parametrization: generate a random Montgomery curve and initial point.
+# Returns (x0, z0, a24) on success, a lucky factor g::T, or nothing for a
+# degenerate curve (gcd == n).
+function _ecm_suyama(n::T) where {T<:Integer}
+    σ = T(rand(6:10^9))
+    u  = _submod(_mulmod(σ, σ, n), T(5), n)
+    v  = _mulmod(T(4), σ, n)
+    x0 = _mulmod(_mulmod(u, u, n), u, n)
+    z0 = _mulmod(_mulmod(v, v, n), v, n)
+
+    vu_diff  = _submod(v, u, n)
+    vu_diff3 = _mulmod(_mulmod(vu_diff, vu_diff, n), vu_diff, n)
+    a24_num  = _mulmod(vu_diff3, _addmod(_mulmod(T(3), u, n), v, n), n)
+    a24_den  = _mulmod(_mulmod(T(16), x0, n), v, n)
+
+    g = gcd(a24_den, n)
+    1 < g < n && return g
+    g == n && return nothing
+
+    a24 = _mulmod(a24_num, invmod(a24_den, n), n)
+    (x0, z0, a24)
+end
+
+# =============================================================================
 # GMP-optimized path for BigInt: in-place arithmetic avoids allocations in
 # the hot Montgomery ladder loop, which matters for large-integer factoring.
 # =============================================================================
@@ -212,37 +252,13 @@ Returns a non-trivial factor of `n`, or `nothing` if none is found within the bu
 See also the `BigInt`-optimised overload which uses in-place GMP arithmetic.
 """
 function ecm_factor(n::T, B1::Int, num_curves::Int) where {T<:Integer}
-    # Precompute prime powers ≤ B1 as plain Int (they are small).
-    prime_powers = Int[]
-    for p in primes(B1)
-        pk = p
-        while pk * p <= B1
-            pk *= p
-        end
-        push!(prime_powers, pk)
-    end
+    prime_powers = _ecm_prime_powers(B1)
 
     for _ in 1:num_curves
-        # Suyama's parametrization: generate a random curve and initial point.
-        σ = T(rand(6:10^9))
-        u  = _submod(_mulmod(σ, σ, n), T(5), n)          # (σ²-5) mod n
-        v  = _mulmod(T(4), σ, n)                          # 4σ mod n
-        x0 = _mulmod(_mulmod(u, u, n), u, n)              # u³ mod n
-        z0 = _mulmod(_mulmod(v, v, n), v, n)              # v³ mod n
-
-        vu_diff = _submod(v, u, n)
-        vu_diff3 = _mulmod(_mulmod(vu_diff, vu_diff, n), vu_diff, n)
-        a24_num = _mulmod(vu_diff3, _addmod(_mulmod(T(3), u, n), v, n), n)
-        a24_den = _mulmod(_mulmod(T(16), x0, n), v, n)
-
-        g = gcd(a24_den, n)
-        if 1 < g < n
-            return g
-        end
-        g == n && continue
-
-        a24_den_inv = invmod(a24_den, n)
-        a24 = _mulmod(a24_num, a24_den_inv, n)
+        curve = _ecm_suyama(n)
+        curve === nothing && continue
+        curve isa Tuple || return curve  # lucky factor from gcd
+        x0, z0, a24 = curve
 
         QX, QZ = x0, z0
 
@@ -287,15 +303,7 @@ hot Montgomery ladder loop.  For fixed-width integer types use the generic metho
 Returns a non-trivial factor of `n`, or `nothing` if none is found within the budget.
 """
 function ecm_factor(n::BigInt, B1::Int, num_curves::Int)::Union{BigInt, Nothing}
-    # Precompute prime powers for Stage 1.
-    prime_powers = Int[]
-    for p in primes(B1)
-        pk = p
-        while pk * p <= B1
-            pk *= p
-        end
-        push!(prime_powers, pk)
-    end
+    prime_powers = _ecm_prime_powers(B1)
 
     buf     = ECMBuffers()
     Q_X     = BigInt()
@@ -303,24 +311,10 @@ function ecm_factor(n::BigInt, B1::Int, num_curves::Int)::Union{BigInt, Nothing}
     tmp_mul = BigInt()
 
     for _ in 1:num_curves
-        # Suyama's parametrization.
-        σ       = BigInt(rand(6:10^9))
-        u       = mod(σ * σ - 5, n)
-        v       = mod(4 * σ, n)
-        x0      = mod(u * u * u, n)
-        z0      = mod(v * v * v, n)
-        vu_diff = mod(v - u, n)
-        a24_num = mod(vu_diff^3 * mod(3 * u + v, n), n)
-        a24_den = mod(16 * x0 * v, n)
-
-        g = gcd(a24_den, n)
-        if 1 < g < n
-            return g
-        end
-        g == n && continue
-
-        a24_den_inv = invmod(a24_den, n)
-        a24         = mod(a24_num * a24_den_inv, n)
+        curve = _ecm_suyama(n)
+        curve === nothing && continue
+        curve isa Tuple || return curve  # lucky factor from gcd
+        x0, z0, a24 = curve
 
         Base.GMP.MPZ.set!(Q_X, x0)
         Base.GMP.MPZ.set!(Q_Z, z0)
