@@ -11,10 +11,10 @@
 # =============================================================================
 
 # Modular addition: (a + b) mod n, for a, b ∈ [0, n).
-# Safe as long as a + b does not overflow T, which holds when n ≪ typemax(T).
+# Avoids computing a + b directly, which could overflow for unsigned T
+# when n is close to typemax(T).
 @inline function _addmod(a::T, b::T, n::T) where {T<:Integer}
-    r = a + b
-    r >= n ? r - n : r
+    a >= n - b ? a - (n - b) : a + b
 end
 
 # Modular subtraction: (a - b) mod n, for a, b ∈ [0, n).
@@ -159,8 +159,10 @@ end
 # Point doubling on Montgomery curve with a24 = (a+2)/4 (generic version).
 # Returns (res_X, res_Z).
 function _ecm_double(PX::T, PZ::T, n::T, a24::T) where {T<:Integer}
-    u = _mulmod(_addmod(PX, PZ, n), _addmod(PX, PZ, n), n)
-    v = _mulmod(_submod(PX, PZ, n), _submod(PX, PZ, n), n)
+    s = _addmod(PX, PZ, n)
+    d = _submod(PX, PZ, n)
+    u = _mulmod(s, s, n)
+    v = _mulmod(d, d, n)
     diff = _submod(u, v, n)
     resX = _mulmod(u, v, n)
     resZ = _mulmod(diff, _addmod(v, _mulmod(a24, diff, n), n), n)
