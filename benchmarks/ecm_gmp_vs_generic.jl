@@ -104,7 +104,7 @@ for case in CASES
     println("    GMP in-place : $(round(med_gmp; digits=2)) ms,  $(round(alloc_gmp; digits=1)) KiB")
     println("    Generic alloc: $(round(med_gen; digits=2)) ms,  $(round(alloc_gen; digits=1)) KiB")
     if med_gmp > 0
-        println("    Speedup      : $(round(med_gen / med_gmp; digits=2))×")
+        println("    Speedup      : $(round(med_gmp / med_gen; digits=2))×")
     end
     if alloc_gen > 0
         println("    Memory saved : $(round((1 - alloc_gmp / alloc_gen) * 100; digits=1))%")

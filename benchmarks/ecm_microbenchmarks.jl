@@ -161,12 +161,12 @@ println("  (GMP in-place → Generic BigInt → UInt128 → UInt256)")
 println("=" ^ 70)
 
 function fmt_speedup(base, other)
-    s = other / base
-    "$(round(s; digits=1))×"
+    s = base / other
+    "$(round(s; digits=2))×"
 end
 
-println("  _mulmod:         $(round(median(b1).time; digits=0)) ns → $(round(median(b2).time; digits=0)) ns ($(fmt_speedup(median(b1).time, median(b2).time))) → $(round(median(b3).time; digits=0)) ns → $(round(median(b3b).time; digits=0)) ns ($(fmt_speedup(median(b1).time, median(b3b).time)) vs GMP)")
-println("  _ecm_add:        $(round(median(b4).time; digits=0)) ns → $(round(median(b5).time; digits=0)) ns ($(fmt_speedup(median(b4).time, median(b5).time))) → $(round(median(b6).time; digits=0)) ns → $(round(median(b6b).time; digits=0)) ns ($(fmt_speedup(median(b4).time, median(b6b).time)) vs GMP)")
-println("  _ecm_double:     $(round(median(b7).time; digits=0)) ns → $(round(median(b8).time; digits=0)) ns ($(fmt_speedup(median(b7).time, median(b8).time))) → $(round(median(b9).time; digits=0)) ns → $(round(median(b9b).time; digits=0)) ns ($(fmt_speedup(median(b7).time, median(b9b).time)) vs GMP)")
-println("  _ecm_scalar_mul: $(round(median(b10).time/1e3; digits=1)) μs → $(round(median(b11).time/1e3; digits=1)) μs ($(fmt_speedup(median(b10).time, median(b11).time))) → $(round(median(b12).time/1e3; digits=1)) μs → $(round(median(b12b).time/1e3; digits=1)) μs ($(fmt_speedup(median(b10).time, median(b12b).time)) vs GMP)")
+println("  _mulmod:         $(round(median(b1).time; digits=0)) ns → $(round(median(b2).time; digits=0)) ns ($(fmt_speedup(median(b1).time, median(b2).time))) → $(round(median(b3).time; digits=0)) ns ($(fmt_speedup(median(b1).time, median(b3).time))) → $(round(median(b3b).time; digits=0)) ns ($(fmt_speedup(median(b1).time, median(b3b).time)))")
+println("  _ecm_add:        $(round(median(b4).time; digits=0)) ns → $(round(median(b5).time; digits=0)) ns ($(fmt_speedup(median(b4).time, median(b5).time))) → $(round(median(b6).time; digits=0)) ns ($(fmt_speedup(median(b4).time, median(b6).time))) → $(round(median(b6b).time; digits=0)) ns ($(fmt_speedup(median(b4).time, median(b6b).time)))")
+println("  _ecm_double:     $(round(median(b7).time; digits=0)) ns → $(round(median(b8).time; digits=0)) ns ($(fmt_speedup(median(b7).time, median(b8).time))) → $(round(median(b9).time; digits=0)) ns ($(fmt_speedup(median(b7).time, median(b9).time))) → $(round(median(b9b).time; digits=0)) ns ($(fmt_speedup(median(b7).time, median(b9b).time)))")
+println("  _ecm_scalar_mul: $(round(median(b10).time/1e3; digits=1)) μs → $(round(median(b11).time/1e3; digits=1)) μs ($(fmt_speedup(median(b10).time, median(b11).time))) → $(round(median(b12).time/1e3; digits=1)) μs ($(fmt_speedup(median(b10).time, median(b12).time))) → $(round(median(b12b).time/1e3; digits=1)) μs ($(fmt_speedup(median(b10).time, median(b12b).time)))")
 println("=" ^ 70)
