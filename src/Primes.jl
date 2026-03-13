@@ -112,6 +112,9 @@ primesmask(n::Integer) = n ≤ typemax(Int) ? primesmask(Int(n)) :
 Returns a collection of the prime numbers (from `lo`, if specified) up to `hi`.
 """
 function primes(lo::Int, hi::Int)
+    if hi<1
+    list=Int[]
+    else
     lo ≤ hi || throw(ArgumentError("The condition lo ≤ hi must be met."))
     list = Int[]
     lo ≤ 2 ≤ hi && push!(list, 2)
@@ -125,9 +128,10 @@ function primes(lo::Int, hi::Int)
     @inbounds for i = 1:length(sieve)   # don't use eachindex here
         sieve[i] && push!(list, wheel_prime(i + lwi))
     end
+    end
     return list
 end
-primes(n::Int) = primes(1, n)
+primes(n::Int) = primes(0, n)
 
 function _generate_min_factors(limit)
     function min_factor(n)
