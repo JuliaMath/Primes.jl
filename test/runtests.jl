@@ -505,6 +505,99 @@ end
     @test Base.IteratorSize(prevprimes(10)) == Base.SizeUnknown()
 end
 
+@testset "PrimeIterator - primes_from" begin
+    @test first(primes_from(10)) == 11
+    @test first(primes_from(11)) == 11
+    @test collect(Iterators.take(primes_from(10), 4)) == [11, 13, 17, 19]
+
+    @test first(primes_from()) == 2
+    @test collect(Iterators.take(primes_from(), 5)) == [2, 3, 5, 7, 11]
+
+    @test primes_from(10) isa PrimeIterator{Int, true}
+    @test primes_from(Int32(10)) isa PrimeIterator{Int32, true}
+    @test primes_from(big(10)) isa PrimeIterator{BigInt, true}
+
+    @test Base.IteratorSize(primes_from(10)) == Base.IsInfinite()
+
+    @test eltype(primes_from(10)) == Int
+    @test eltype(primes_from(Int32(10))) == Int32
+    @test eltype(primes_from(big(10))) == BigInt
+
+    @test collect(Iterators.take(primes_from(100), 3)) == [101, 103, 107]
+
+    @test collect(Iterators.takewhile(p -> p < 20, primes_from(10))) == [11, 13, 17, 19]
+
+    for n in [2, 3, 10, 100, 1000]
+        @test first(primes_from(n)) == nextprime(n)
+    end
+
+    @test repr(primes_from(10)) == "primes_from(10)"
+    @test repr(primes_from(big(42))) == "primes_from(42)"
+
+    @test typeof(primes_from(10)) == PrimeIterator{Int, true}
+
+    @test_throws ArgumentError primes_from(-1)
+    @test_throws ArgumentError primes_from(-10)
+
+    for n in [2, 5, 10, 100]
+        for i in 1:5
+            @test nextprime(n, i) == collect(Iterators.take(primes_from(n), i))[end]
+        end
+    end
+end
+
+@testset "PrimeIterator - primes_upto" begin
+    @test first(primes_upto(10)) == 7
+    @test first(primes_upto(11)) == 11
+    @test collect(Iterators.take(primes_upto(20), 4)) == [19, 17, 13, 11]
+
+    @test primes_upto(10) isa PrimeIterator{Int, false}
+    @test primes_upto(Int32(10)) isa PrimeIterator{Int32, false}
+    @test primes_upto(big(10)) isa PrimeIterator{BigInt, false}
+
+    @test Base.IteratorSize(primes_upto(10)) == Base.SizeUnknown()
+    @test collect(primes_upto(10)) == [7, 5, 3, 2]
+    @test collect(primes_upto(2)) == [2]
+
+    @test eltype(primes_upto(10)) == Int
+    @test eltype(primes_upto(Int32(10))) == Int32
+    @test eltype(primes_upto(big(10))) == BigInt
+
+    @test collect(Iterators.take(primes_upto(100), 3)) == [97, 89, 83]
+
+    pairs = collect(Iterators.take(Iterators.zip(primes_from(10), primes_upto(100)), 3))
+    @test pairs == [(11, 97), (13, 89), (17, 83)]
+
+    for n in [2, 3, 10, 100, 1000]
+        @test first(primes_upto(n)) == prevprime(n)
+    end
+
+    @test repr(primes_upto(10)) == "primes_upto(10)"
+    @test repr(primes_upto(big(42))) == "primes_upto(42)"
+
+    @test_throws ArgumentError primes_upto(-1)
+    @test_throws ArgumentError primes_upto(-10)
+
+    @test collect(primes_upto(1)) == []
+    @test collect(primes_upto(0)) == []
+
+    big_primes = collect(Iterators.take(primes_upto(big(100)), 3))
+    @test big_primes == [prevprime(big(100), i) for i in 1:3]
+end
+
+@testset "PrimeIterator - overflow propagation" begin
+    @test_throws OverflowError collect(Iterators.take(primes_from(typemax(Int) - 1), 2))
+end
+
+@testset "PrimeIterator - existing API unchanged" begin
+    @test nextprime(10) == 11
+    @test nextprime(10, 3) == 17
+    @test prevprime(10) == 7
+    @test prevprime(10, 3) == 3
+    @test nextprimes(10, 3) == [11, 13, 17]
+    @test prevprimes(10, 3) == [7, 5, 3]
+end
+
 @testset "primes with huge arguments" begin
     if Base.Sys.WORD_SIZE == 64
         @test primes(2^63-200, 2^63-1) == [9223372036854775643, 9223372036854775783]
