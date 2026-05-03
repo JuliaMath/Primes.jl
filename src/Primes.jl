@@ -9,7 +9,8 @@ using Base.Checked: checked_neg
 using IntegerMathUtils
 
 export isprime, primes, primesmask, factor, eachfactor, divisors, ismersenneprime, isrieselprime,
-       nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
+       nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient,
+       primes_from, primes_upto, PrimeIterator
 
 include("factorization.jl")
 
@@ -967,6 +968,117 @@ julia> prevprimes(10, 10)
 """
 prevprimes(start::T, n::Integer) where {T<:Integer} =
     collect(T, Iterators.take(prevprimes(start), n))
+
+"""
+    PrimeIterator{T<:Integer, Up}
+
+A lazy iterator over prime numbers. When `Up` is `true`, iterates in ascending order
+(constructed via [`primes_from`](@ref)). When `Up` is `false`, iterates in descending
+order (constructed via [`primes_upto`](@ref)).
+
+The type parameter `T` determines the integer type of yielded primes, and `Up` is a
+compile-time boolean controlling iteration direction.
+"""
+struct PrimeIterator{T<:Integer, Up}
+    start::T
+    function PrimeIterator{T, Up}(start::T) where {T<:Integer, Up}
+        start < zero(start) && throw(ArgumentError("start must be non-negative, got $start"))
+        new{T, Up}(start)
+    end
+end
+
+function iterate(it::PrimeIterator{T, true}, state=it.start) where {T}
+    p = nextprime(state)
+    (p, add(p, one(p)))
+end
+
+function iterate(it::PrimeIterator{T, false}, state=it.start) where {T}
+    state < T(2) && return nothing
+    p = prevprime(state)
+    (p, p - one(p))
+end
+
+IteratorSize(::Type{<:PrimeIterator{T, true}}) where {T} = Base.IsInfinite()
+IteratorSize(::Type{<:PrimeIterator{T, false}}) where {T} = Base.SizeUnknown()
+IteratorEltype(::Type{<:PrimeIterator}) = Base.HasEltype()
+eltype(::Type{PrimeIterator{T, Up}}) where {T, Up} = T
+
+function Base.show(io::IO, it::PrimeIterator{T, true}) where {T}
+    print(io, "primes_from(", it.start, ")")
+end
+
+function Base.show(io::IO, it::PrimeIterator{T, false}) where {T}
+    print(io, "primes_upto(", it.start, ")")
+end
+
+"""
+    primes_from(n::Integer)
+
+Return a lazy, infinite iterator over all primes greater than or equal to `n`,
+in ascending order.
+
+# Examples
+
+```jldoctest
+julia> collect(Iterators.take(primes_from(10), 5))
+5-element Vector{Int64}:
+ 11
+ 13
+ 17
+ 19
+ 23
+
+julia> first(primes_from(100))
+101
+```
+"""
+primes_from(n::T) where {T<:Integer} = PrimeIterator{T, true}(n)
+
+"""
+    primes_from()
+
+Return a lazy, infinite iterator over all primes starting from `2`.
+Equivalent to `primes_from(2)`.
+
+# Examples
+
+```jldoctest
+julia> collect(Iterators.take(primes_from(), 5))
+5-element Vector{Int64}:
+  2
+  3
+  5
+  7
+ 11
+```
+"""
+primes_from() = primes_from(2)
+
+"""
+    primes_upto(n::Integer)
+
+Return a lazy iterator over all primes less than or equal to `n`,
+in descending order. Terminates when no more primes remain.
+
+# Examples
+
+```jldoctest
+julia> collect(primes_upto(20))
+8-element Vector{Int64}:
+ 19
+ 17
+ 13
+ 11
+  7
+  5
+  3
+  2
+
+julia> collect(primes_upto(1))
+Int64[]
+```
+"""
+primes_upto(n::T) where {T<:Integer} = PrimeIterator{T, false}(n)
 
 """
     divisors(n::Integer) -> Vector

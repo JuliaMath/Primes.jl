@@ -19,6 +19,9 @@ Primes.primes
 Primes.nextprime
 Primes.prevprime
 Primes.prime
+Primes.primes_from
+Primes.primes_upto
+Primes.PrimeIterator
 ```
 
 ## Identifying prime numbers
