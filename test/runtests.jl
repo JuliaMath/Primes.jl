@@ -511,3 +511,168 @@ end
     end
     @test primes(2^31-20, 2^31-1) == [2147483629, 2147483647]
 end
+
+@testset "ECM factorization" begin
+    # Semi-prime with a ~40-bit factor
+    p1 = big"824633720831"   # 40-bit prime
+    q1 = big"1000000007"     # 30-bit prime
+    n1 = p1 * q1
+    f1 = factor(n1)
+    @test prodfactors(f1) == n1
+    @test all(isprime(p) for (p, _) in f1)
+
+    # p ~40 bits, q ~80 bits
+    p2 = big"824633720831"
+    q2 = big"1180591620717411303449"  # ~80-bit prime
+    n2 = p2 * q2
+    f2 = factor(n2)
+    @test prodfactors(f2) == n2
+    @test all(isprime(p) for (p, _) in f2)
+end
+
+@testset "MPQS factorization" begin
+    # Semi-prime with two ~60-bit factors
+    p1 = big"780002082420426809"
+    q1 = big"810735269523504809437013569"
+    n1 = p1 * q1
+    f1 = factor(n1)
+    @test prodfactors(f1) == n1
+    @test all(isprime(p) for (p, _) in f1)
+end
+
+@testset "BigInt factorization" begin
+    # factor(BigInt(n)) returns Factorization{BigInt}
+    n1 = big"2152302898747"
+    f1 = factor(n1)
+    @test f1 isa Primes.Factorization{BigInt}
+    @test prodfactors(f1) == n1
+
+    # BigInt prime returns single-entry
+    p = big"359334085968622831041960188598043661065388726959079837"
+    f2 = factor(p)
+    @test length(f2) == 1
+    @test first(f2) == (p => 1)
+end
+
+@testset "ECM edge cases" begin
+    # ECM with a small semi-prime (BigInt path — GMP in-place)
+    n = big"1000000007" * big"1000000009"
+    result = Primes.ecm_factor(n, 2000, 50)
+    @test result !== nothing
+    @test mod(n, result) == 0
+
+    # ECM returns nothing when curves are insufficient for a hard number
+    hard = nextprime(big"10"^30) * nextprime(big"10"^30 + 1000)
+    result2 = Primes.ecm_factor(hard, 100, 1)
+    # May or may not find a factor with just 1 curve — no assertion on result
+end
+
+@testset "ECM Stage 2" begin
+    # Stage 2 should improve success rate for low B1 values where Stage 1
+    # alone frequently fails. With B1=200 and B2=100*B1, the continuation
+    # catches group orders with one large prime factor in (B1, B2].
+
+    n = big"824633720831" * big"1000000007"
+
+    # With B1=200 and many curves, Stage 2 should find the factor reliably.
+    # (Stage 1 alone at B1=200 finds it only ~8% of the time per 5-curve attempt.)
+    result = Primes.ecm_factor(n, 200, 50)
+    @test result !== nothing
+    @test mod(n, result) == 0
+
+    # BigInt path: verify GMP in-place Stage 2 works
+    n_big = big"1000000007" * big"1000000009"
+    result_big = Primes.ecm_factor(n_big, 200, 50)
+    @test result_big !== nothing
+    @test mod(n_big, result_big) == 0
+
+    # Generic path: UInt128
+    n_u128 = UInt128(1_000_000_007) * UInt128(1_000_000_009)
+    result_u128 = Primes.ecm_factor(n_u128, 200, 50)
+    @test result_u128 !== nothing
+    @test mod(n_u128, result_u128) == 0
+    @test result_u128 isa UInt128
+end
+
+@testset "ECM Stage 2 finds factors Stage 1 misses" begin
+    # Run Stage 1 alone on many curves with low B1.  Collect curves where
+    # Stage 1 failed (gcd == 1), then run Stage 2 on those and verify it
+    # finds at least one factor that Stage 1 could not.
+    n = big"824633720831" * big"1000000007"
+    B1 = 200
+    B2 = 100 * B1
+    pp = Primes._ecm_prime_powers(B1)
+
+    stage1_only_found  = 0
+    stage2_extra_found = 0
+    curves_tested      = 0
+    stage1_missed      = 0
+
+    for _ in 1:200
+        curve = Primes._ecm_suyama(n)
+        curve === nothing && continue
+        !(curve isa Tuple) && continue
+        x0, z0, a24 = curve
+        curves_tested += 1
+
+        # Run Stage 1 manually
+        QX, QZ = x0, z0
+        for pk in pp
+            QX, QZ = Primes._ecm_scalar_mul(pk, QX, QZ, n, a24)
+        end
+        g1 = gcd(QZ, n)
+        if 1 < g1 < n
+            stage1_only_found += 1
+            continue
+        end
+
+        # Stage 1 did not find a factor on this curve
+        stage1_missed += 1
+
+        # Now run Stage 2 on the same post-Stage-1 point
+        s2 = Primes._ecm_stage2(QX, QZ, n, a24, B1, B2)
+        if s2 !== nothing && 1 < s2 < n
+            stage2_extra_found += 1
+            @test mod(n, s2) == 0
+        end
+    end
+
+    # With B1=200 on this number, Stage 1 finds ~8% of curves.
+    # Stage 2 should rescue additional curves, proving it adds value.
+    @test curves_tested >= 100  # enough curves for a meaningful test
+    @test stage1_missed > 0     # Stage 1 didn't find everything
+    @test stage2_extra_found > 0  # Stage 2 found at least one that Stage 1 missed
+    @test stage2_extra_found > stage1_only_found  # Stage 2 rescues more than Stage 1 found
+end
+
+@testset "ECM generic integer types" begin
+    # UInt128: widen(UInt128) == BigInt in base Julia — exercises the generic
+    # _mulmod/_addmod/_submod helpers via the BigInt widen path.
+    p = UInt128(1_000_000_007) * UInt128(999_999_937)
+    q = UInt128(1_000_000_009)
+    n = p * q
+    result = Primes.ecm_factor(n, 2000, 50)
+    @test result !== nothing
+    @test mod(n, result) == 0
+    @test result isa UInt128
+
+    # UInt256 / UInt512 from BitIntegers.jl: widen stays in LLVM fixed-width
+    # integers (UInt256 → UInt512), so no BigInt allocation in the inner loop.
+    using BitIntegers
+    p256 = UInt256(1_000_000_007) * UInt256(999_999_937)
+    q256 = UInt256(1_000_000_009)
+    n256 = p256 * q256
+    r256 = Primes.ecm_factor(n256, 2000, 50)
+    @test r256 !== nothing
+    @test mod(n256, r256) == 0
+    @test r256 isa UInt256
+
+    # Int256 (signed BitIntegers type)
+    p256s = Int256(1_000_000_007) * Int256(999_999_937)
+    q256s = Int256(1_000_000_009)
+    n256s = p256s * q256s
+    r256s = Primes.ecm_factor(n256s, 2000, 50)
+    @test r256s !== nothing
+    @test mod(n256s, r256s) == 0
+    @test r256s isa Int256
+end
