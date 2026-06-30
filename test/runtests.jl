@@ -511,3 +511,5 @@ end
     end
     @test primes(2^31-20, 2^31-1) == [2147483629, 2147483647]
 end
+
+include("sieve_tests.jl")
