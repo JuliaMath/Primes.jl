@@ -111,6 +111,16 @@ for n = 100:100:1000
     @test primesmask(n, 10n) == primesmask(10n)[n:end]
 end
 
+# Window advance must stay chunk-aligned for any seg_chunks (odd sizes force many misalignable
+# window boundaries); compare multi-window output against the single-window default.
+for seg_chunks in (1, 3, 7)
+    ps = Int[]
+    for ss in Primes.SegmentedSieve(7, 300_000; seg_chunks)
+        Primes.each_lane_prime(p -> push!(ps, p), ss)
+    end
+    @test ps == primes(7, 300_000)
+end
+
 for T in [Int, BigInt], n = [1:1000;1000000]
     n = convert(T, n)
     f = factor(n)

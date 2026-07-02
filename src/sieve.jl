@@ -91,23 +91,23 @@ consume those windows.
 mutable struct SegmentedSieve
     lo::Int
     hi::Int
-    seg_blocks::Int          # lane size (blocks per window)
+    seg_chunks::Int          # lane size (64-block chunks per window), so windows stay chunk-aligned
     # Large base primes (≥ COMB_THRESH) as (p÷30, residue-class index); p and p² reconstruct from
     # these, so the raw prime values are never stored. Small primes are the COMB_PRIMES const.
     stride_primes::Vector{Tuple{Int32,Int8}}
-    lanes::Vector{BitVector} # the current window: 8 lanes, ≤ seg_blocks bits each
+    lanes::Vector{BitVector} # the current window: 8 lanes, ≤ 64·seg_chunks bits each
     win_block::Int           # current window: first absolute block
-    nblocks::Int             # current window: number of blocks
+    nchunks::Int             # current window: number of valid chunks (padding bits are zeroed)
 end
 
-# Optimal number of blocks per window. Low cap is 32 KiB/lane allowing for sieving within L1.
+# Optimal number of chunks per window. Low cap is 32 KiB/lane allowing for sieving within L1.
 # As hi grows, we start sieving by bigger primes so we grow the window, but cap at MiB/lane to stay within L2.
-_seg_blocks(hi::Integer) = clamp(isqrt(hi) << 3, 1 << 18, 1 << 24)
+_seg_chunks(hi::Integer) = clamp(isqrt(hi) >>> 3, 1 << 12, 1 << 18)
 
-# Chunk-aligned first block at or below `lo`
-_first_block(lo::Integer) = (fld(lo, 30) >>> 6) << 6
+# Chunk holding `lo` (window starts are chunk-aligned)
+_first_chunk(lo::Integer) = fld(lo, 30) >>> 6
 
-function SegmentedSieve(lo::Int, hi::Int; seg_blocks::Int = _seg_blocks(hi))
+function SegmentedSieve(lo::Int, hi::Int; seg_chunks::Int = _seg_chunks(hi))
     lo = max(7, lo)
     # Decompose the stride primes (≥ COMB_THRESH; smaller ones are the comb) into (p÷30, residue
     # class) once. Stream them with eachprime so we never allocate the full base-prime vector.
@@ -119,24 +119,24 @@ function SegmentedSieve(lo::Int, hi::Int; seg_blocks::Int = _seg_blocks(hi))
             push!(stride_primes, (pq % Int32, WHEEL_IDX[pr + 1] % Int8))
         end
     end
-    num_blocks = min(seg_blocks, fld(hi, 30) - _first_block(lo) + 1)
-    lanes = [BitVector(undef, num_blocks) for _ in 1:8]
-    return SegmentedSieve(lo, hi, seg_blocks, stride_primes, lanes, 0, 0)
+    num_chunks = min(seg_chunks, cld(fld(hi, 30) + 1, 64) - _first_chunk(lo))
+    lanes = [BitVector(undef, num_chunks << 6) for _ in 1:8]
+    return SegmentedSieve(lo, hi, seg_chunks, stride_primes, lanes, 0, 0)
 end
 
 Base.IteratorSize(::Type{SegmentedSieve}) = Base.SizeUnknown()
 Base.eltype(::Type{SegmentedSieve}) = SegmentedSieve
 
-# Fill the next window into the lanes and yield the sieve itself (with `win_block`/`nblocks` set
+# Fill the next window into the lanes and yield the sieve itself (with `win_block`/`nchunks` set
 # to the current window). Boundary bits (< lo, > hi, padding) are masked, so consumers need
 # no per-prime range checks.
-function Base.iterate(ss::SegmentedSieve, win_block::Int = _first_block(ss.lo))
+function Base.iterate(ss::SegmentedSieve, win_chunk::Int = _first_chunk(ss.lo))
+    win_block = win_chunk << 6
     last_block = fld(ss.hi, 30)
     win_block > last_block && return nothing
     lanes = ss.lanes
-    nblocks = min(ss.seg_blocks, last_block - win_block + 1)
+    nblocks = min(ss.seg_chunks << 6, last_block - win_block + 1)
     nchunks = cld(nblocks, 64)
-    first_chunk = win_block ÷ 64                       # absolute chunk of local chunk 1
     win_last_block = win_block + nblocks - 1
     win_max = win_last_block == last_block ? ss.hi : 30 * win_last_block + 29
     max_prime = isqrt(win_max)
@@ -156,7 +156,7 @@ function Base.iterate(ss::SegmentedSieve, win_block::Int = _first_block(ss.lo))
         for ci in eachindex(COMB_PRIMES)               # small primes: periodic comb AND
             p = COMB_PRIMES[ci]
             p > max_prime && break
-            comb_clear!(chunks, COMB_TABLE[ci][lane], p, first_chunk, nchunks)
+            comb_clear!(chunks, COMB_TABLE[ci][lane], p, win_chunk, nchunks)
             if win_block == 0 && p % 30 == w           # comb cleared p's own bit (p·1) and this is p's lane
                 b = fld(p, 30)
                 chunks[b >>> 6 + 1] |= UInt64(1) << (b & 63)
@@ -195,8 +195,8 @@ function Base.iterate(ss::SegmentedSieve, win_block::Int = _first_block(ss.lo))
     end
 
     ss.win_block = win_block
-    ss.nblocks = nblocks
-    return (ss, win_block + ss.seg_blocks)
+    ss.nchunks = nchunks
+    return (ss, win_chunk + ss.seg_chunks)
 end
 
 # Exchange the bit-blocks of `a` and `b` selected by `mask` / `shift`
@@ -239,7 +239,7 @@ end
 function each_lane_prime(f, ss::SegmentedSieve)
     win_block = ss.win_block
     chunks = ntuple(i -> ss.lanes[i].chunks, Val(8))            # the 8 lanes' word arrays
-    nchunks = cld(ss.nblocks, 64)
+    nchunks = ss.nchunks
     @inbounds for chunk in 1:nchunks
         w = ntuple(i -> chunks[i][chunk], Val(8))               # one word from each lane
         reduce(|, w) == 0 && continue                           # no primes in these 64 blocks
@@ -292,7 +292,7 @@ mutable struct EachPrime
     lo::Int
     hi::Int
     sieve::Union{SegmentedSieve,Nothing}  # nothing when hi < 7
-    next_block::Int                       # first block of the next window to fetch
+    next_chunk::Int                       # first chunk of the next window to fetch
     buffer::Vector{Int}                   # the current window's primes
     pos::Int                              # next index into buffer
     phase::Int                            # 0,1,2 ⇒ emit 2,3,5; ≥3 ⇒ window mode
@@ -307,8 +307,8 @@ function eachprime(lo::Integer, hi::Integer)
     lo ≤ hi || throw(ArgumentError("The condition lo ≤ hi must be met."))
     lo, hi = Int(lo), Int(hi)
     sieve = hi < 7 ? nothing : SegmentedSieve(max(7, lo), hi)
-    next_block = sieve === nothing ? 0 : _first_block(sieve.lo)
-    return EachPrime(lo, hi, sieve, next_block, Int[], 1, 0)
+    next_chunk = sieve === nothing ? 0 : _first_chunk(sieve.lo)
+    return EachPrime(lo, hi, sieve, next_chunk, Int[], 1, 0)
 end
 eachprime(hi::Integer) = eachprime(1, hi)
 
@@ -323,9 +323,9 @@ function Base.iterate(ep::EachPrime, ::Any = nothing)
     end
     while ep.pos > length(ep.buffer)            # refill from the next window(s)
         ep.sieve === nothing && return nothing
-        next = iterate(ep.sieve, ep.next_block)
+        next = iterate(ep.sieve, ep.next_chunk)
         next === nothing && return nothing
-        window, ep.next_block = next            # window === ep.sieve (it yields itself)
+        window, ep.next_chunk = next            # window === ep.sieve (it yields itself)
         empty!(ep.buffer)
         each_lane_prime(v -> push!(ep.buffer, v), window)
         ep.pos = 1
