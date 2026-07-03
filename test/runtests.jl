@@ -186,6 +186,10 @@ end
 # test second branch, after all small primes in list have been searched
 @test factor(10009 * Int128(1000000000000037)) == Dict(10009 => 1, 1000000000000037 => 1)
 
+# 62-bit semiprimes exercise lenstrafactor's widened (Int128) modular arithmetic
+@test factor(2147483659 * 2147484679) == Dict(2147483659 => 1, 2147484679 => 1)
+@test factor(2147539211 * 3221125483) == Dict(2147539211 => 1, 3221125483 => 1)
+
 for n = 1:100
     m = 1
     for (p,k) in factor(n)

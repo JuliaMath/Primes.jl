@@ -320,14 +320,20 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     root = iroot(n, r)
     while r >= 2
         if root^r == n
-            isprime(root) && return (root, r), (n, root+2)
+            if isprime(root)
+                return (root, r), (1, root+2)
+            else
+                f = first(eachfactor(root))
+                return f, (n÷f, root+2)
+            end
         end
         r -= 1
         root = iroot(n, r)
     end
 
-    should_widen = !Base.hastypemax(T) || widemul(n - 1, n - 1) ≤ typemax(n)
-    p = should_widen ? lenstrafactor(n) : lenstrafactor(widen(n))
+    # lenstrafactor's modular arithmetic needs intermediates up to 2n^2
+    fits = !Base.hastypemax(T) || widemul(n, n) ≤ typemax(n) ÷ 2
+    p = fits ? lenstrafactor(n) : lenstrafactor(widen(n))
     num_p = 0
     while true
         q, r = divrem(n, p)
@@ -337,13 +343,76 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     end
 end
 
+function lenstrafactor(n::T) where{T<:Integer}
+    # bounds and runs per bound taken from
+    # https://www.rieselprime.de/ziki/Elliptic_curve_method
+    B1s = Int[2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
+                43e6, 11e7, 26e7, 85e7, 29e8, 76e8, 25e9]
+    runs = Int[25, 90, 300, 700, 1800, 5100, 1800, 10600,
+              19300, 49000, 124000, 210000, 340000, 10^6, 10^7]
+    for (B1, run) in zip(B1s, runs)
+        small_primes = primes(B1)
+        for a in -run:run
+            res = lenstra_get_factor(n, a, small_primes, B1)
+            if res != 1
+                return isprime(res) ? res : lenstrafactor(res)
+            end
+        end
+    end
+    throw(ArgumentError("This number is too big to be factored with this algorithm effectively"))
+end
+
+function lenstra_get_factor(N::T, a, small_primes, plimit) where T <: Integer
+    x, y = T(0), T(1)
+    for B in small_primes
+        t = B^trunc(Int64, log(B, plimit))
+        xn, yn = T(0), T(0)
+        sx, sy = x, y
+
+        first = true
+        while t > 0
+            if isodd(t)
+                if first
+                    xn, yn = sx, sy
+                    first = false
+                else
+                    g, u, _ = gcdx(sx-xn, N)
+                    # g == N means the points coincide or are inverses: give up on this curve
+                    g > 1 && (g == N ? (return T(1)) : return g)
+                    u < 0 && (u += N)
+                    # coordinates stay in [0, N) and u < N, so products stay below N^2
+                    # and every intermediate below 2N^2, which the caller guarantees fits
+                    L  = mod(u*(sy-yn), N)
+                    xs = mod(L*L - xn - sx, N)
+
+                    yn = mod(L*(xn - xs) - yn, N)
+                    xn = xs
+                end
+            end
+            g, u, _ = gcdx(2*sy, N)
+            g > 1 && (g == N ? (return T(1)) : return g)
+            u < 0 && (u += N)
+
+            L  = mod(u*mod(3*mod(sx*sx, N) + a, N), N)
+            x2 = mod(L*L - 2*sx, N)
+
+            sy = mod(L*(sx - x2) - sy, N)
+            sx = x2
+
+            sy == 0 && return T(1)
+            t >>= 1
+        end
+        x, y = xn, yn
+    end
+    return T(1)
+end
+
 function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
     for (p, num_p) in eachfactor(n)
         increment!(h, num_p, p)
     end
     return h
 end
-
 
 """
     factor(n::Integer) -> Primes.Factorization
@@ -458,67 +527,6 @@ julia> radical(2*2*3)
 ```
 """
 radical(n) = n==1 ? one(n) : prod(p for (p, num_p) in eachfactor(n))
-
-function lenstrafactor(n::T) where{T<:Integer}
-    # bounds and runs per bound taken from
-    # https://www.rieselprime.de/ziki/Elliptic_curve_method
-    B1s = Int[2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
-                43e6, 11e7, 26e7, 85e7, 29e8, 76e8, 25e9]
-    runs = Int[25, 90, 300, 700, 1800, 5100, 1800, 10600,
-              19300, 49000, 124000, 210000, 340000, 10^6, 10^7]
-    for (B1, run) in zip(B1s, runs)
-        small_primes = primes(B1)
-        for a in -run:run
-            res = lenstra_get_factor(n, a, small_primes, B1)
-            if res != 1
-                return isprime(res) ? res : lenstrafactor(res)
-            end
-        end
-    end
-    throw(ArgumentError("This number is too big to be factored with this algorith effectively"))
-end
-
-function lenstra_get_factor(N::T, a, small_primes, plimit) where T <: Integer
-    x, y = T(0), T(1)
-    for B in small_primes
-        t = B^trunc(Int64, log(B, plimit))
-        xn, yn = T(0), T(0)
-        sx, sy = x, y
-
-        first = true
-        while t > 0
-            if isodd(t)
-                if first
-                    xn, yn = sx, sy
-                    first = false
-                else
-                    g, u, _ = gcdx(sx-xn, N)
-                    g > 1 && (g == N ? break : return g)
-                    u += N
-                    L  = (u*(sy-yn)) % N
-                    xs = (L*L - xn - sx) % N
-
-                    yn = (L*(xn - xs) - yn) % N
-                    xn = xs
-                end
-            end
-            g, u, _ = gcdx(2*sy, N)
-            g > 1 && (g == N ? break : return g)
-            u += N
-
-            L  = (u*(3*sx*sx + a)) % N
-            x2 = (L*L - 2*sx) % N
-
-            sy = (L*(sx - x2) - sy) % N
-            sx = x2
-
-            sy == 0 && return T(1)
-            t >>= 1
-        end
-        x, y = xn, yn
-    end
-    return T(1)
-end
 
 """
     ismersenneprime(M::Integer; [check::Bool = true]) -> Bool
