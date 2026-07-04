@@ -189,6 +189,8 @@ end
 # 62-bit semiprimes exercise lenstrafactor's widened (Int128) modular arithmetic
 @test factor(2147483659 * 2147484679) == Dict(2147483659 => 1, 2147484679 => 1)
 @test factor(2147539211 * 3221125483) == Dict(2147539211 => 1, 3221125483 => 1)
+# unsigned inputs route through lenstrafactor's signed-domain conversion
+@test factor(UInt64(2147483659) * UInt64(2147484679)) == Dict(2147483659 => 1, 2147484679 => 1)
 
 for n = 1:100
     m = 1

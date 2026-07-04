@@ -343,68 +343,148 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     end
 end
 
-function lenstrafactor(n::T) where{T<:Integer}
+# the curve arithmetic uses plain +/- with negative intermediates, so run
+# unsigned inputs in the equally-sized signed domain (the widening check
+# already caps n^2 ≤ typemax(n)÷2, so n fits the signed type)
+lenstrafactor(n::Unsigned) = lenstrafactor(signed(typeof(n))(n))
+
+function lenstrafactor(n::T; use_stage2::Bool=true) where{T<:Integer}
     # bounds and runs per bound taken from
     # https://www.rieselprime.de/ziki/Elliptic_curve_method
-    B1s = Int[2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
+    # the 200 tier is a cheap pre-pass that catches most factors ≤ ~20 bits
+    B1s = Int[200, 2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
                 43e6, 11e7, 26e7, 85e7, 29e8, 76e8, 25e9]
-    runs = Int[25, 90, 300, 700, 1800, 5100, 1800, 10600,
-              19300, 49000, 124000, 210000, 340000, 10^6, 10^7]
+    # published counts assume GMP-ECM's much larger B2; scaled 1.5x for B2 = 25*B1
+    runs = Int[6, 38, 135, 450, 1050, 2700, 7650, 2700, 15900,
+              29000, 73500, 186000, 315000, 510000, 15*10^5, 15*10^6]
     for (B1, run) in zip(B1s, runs)
         small_primes = primes(B1)
-        for a in -run:run
-            res = lenstra_get_factor(n, a, small_primes, B1)
+        for σ in 6:2*run+6
+            res = lenstra_stage_1(n, σ, small_primes, B1; use_stage2)
             if res != 1
-                return isprime(res) ? res : lenstrafactor(res)
+                return isprime(res) ? res : lenstrafactor(res; use_stage2)
             end
         end
     end
     throw(ArgumentError("This number is too big to be factored with this algorithm effectively"))
 end
 
-function lenstra_get_factor(N::T, a, small_primes, plimit) where T <: Integer
-    x, y = T(0), T(1)
-    for B in small_primes
-        t = B^trunc(Int64, log(B, plimit))
-        xn, yn = T(0), T(0)
-        sx, sy = x, y
+# x-only arithmetic on Montgomery curves B*y^2 = x^3 + A*x^2 + x, projective X:Z.
+# mod-reduced values live in [0, N), but intermediate sums/differences may reach
+# (-N, 2N), so this arithmetic needs signed T and |products| ≤ 2N^2 to fit in T —
+# both guaranteed by the callers (widening check + unsigned-to-signed conversion).
+# _addmod keeps sums that get squared in [0, N); squaring an unreduced sum would
+# need 4N^2 of headroom, i.e. cost half a bit of the widening threshold.
+@inline _addmod(a, b, N) = (c = a + b; c ≥ N ? c - N : c)
 
-        first = true
-        while t > 0
-            if isodd(t)
-                if first
-                    xn, yn = sx, sy
-                    first = false
-                else
-                    g, u, _ = gcdx(sx-xn, N)
-                    # g == N means the points coincide or are inverses: give up on this curve
-                    g > 1 && (g == N ? (return T(1)) : return g)
-                    u < 0 && (u += N)
-                    # coordinates stay in [0, N) and u < N, so products stay below N^2
-                    # and every intermediate below 2N^2, which the caller guarantees fits
-                    L  = mod(u*(sy-yn), N)
-                    xs = mod(L*L - xn - sx, N)
+# doubling, with a24 = (A+2)/4
+@inline function _xdbl(X, Z, a24, N)
+    s = _addmod(X, Z, N)
+    d = X - Z
+    s2 = mod(s*s, N)
+    d2 = mod(d*d, N)
+    t = s2 - d2     # 4XZ
+    return mod(s2*d2, N), mod(t*(d2 + mod(a24*t, N)), N)
+end
 
-                    yn = mod(L*(xn - xs) - yn, N)
-                    xn = xs
-                end
-            end
-            g, u, _ = gcdx(2*sy, N)
-            g > 1 && (g == N ? (return T(1)) : return g)
-            u < 0 && (u += N)
+# differential addition: P+Q given their difference D = P-Q
+@inline function _xadd(XP, ZP, XQ, ZQ, XD, ZD, N)
+    u = mod((XP - ZP)*(XQ + ZQ), N)
+    v = mod((XP + ZP)*(XQ - ZQ), N)
+    s = _addmod(u, v, N)
+    d = u - v
+    return mod(ZD*mod(s*s, N), N), mod(XD*mod(d*d, N), N)
+end
 
-            L  = mod(u*mod(3*mod(sx*sx, N) + a, N), N)
-            x2 = mod(L*L - 2*sx, N)
-
-            sy = mod(L*(sx - x2) - sy, N)
-            sx = x2
-
-            sy == 0 && return T(1)
-            t >>= 1
+# Montgomery ladder: k*(X:Z) for k ≥ 1
+@inline function _xladder(k, X, Z, a24, N)
+    k == 1 && return X, Z
+    X0, Z0 = X, Z
+    X1, Z1 = _xdbl(X, Z, a24, N)
+    for i in 8*sizeof(k)-leading_zeros(k)-2:-1:0
+        if (k >> i) & 1 == 0
+            X1, Z1 = _xadd(X0, Z0, X1, Z1, X, Z, N)
+            X0, Z0 = _xdbl(X0, Z0, a24, N)
+        else
+            X0, Z0 = _xadd(X1, Z1, X0, Z0, X, Z, N)
+            X1, Z1 = _xdbl(X1, Z1, a24, N)
         end
-        x, y = xn, yn
     end
-    return T(1)
+    return X0, Z0
+end
+
+# One ECM stage-1 attempt on the Suyama curve with parameter σ ≥ 6.
+# Returns a nontrivial factor of N, or 1 if this curve fails.
+function lenstra_stage_1(N::T, σ, small_primes, plimit; use_stage2::Bool=true) where T <: Integer
+    # Suyama parametrization: guarantees torsion 12 and a known starting point
+    u = mod(T(σ)*T(σ) - 5, N)
+    v = mod(4*T(σ), N)
+    X = mod(mod(u*u, N)*u, N)   # u^3
+    Z = mod(mod(v*v, N)*v, N)   # v^3
+    # a24 = (v-u)^3*(3u+v) / (16*u^3*v); a non-invertible denominator is itself a factor
+    den = mod(mod(T(16)*X, N)*v, N)
+    g, di, _ = gcdx(den, N)
+    g > 1 && return g == N ? T(1) : g
+    w = v - u
+    num = mod(mod(mod(w*w, N)*w, N)*mod(3u + v, N), N)
+    a24 = mod(num*mod(di, N), N)
+    for B in small_primes
+        # multiply in the largest power of B that stays ≤ plimit
+        t = B*B > plimit ? B : B^trunc(Int64, log(B, plimit))
+        X, Z = _xladder(t, X, Z, a24, N)
+        Z == 0 && return T(1)  # hit the identity mod N: curve failed
+    end
+    g = gcd(Z, N)
+    1 < g < N && return g
+    g == N && return T(1)
+    return use_stage2 ? _lenstra_stage2(N, X, Z, a24, plimit) : T(1)
+end
+
+# Stage 2 (standard continuation): look for a single prime q ∈ (B1, B2] with
+# q*Q ≡ identity mod p. Writing q = m*D ± j, that means x(mD*Q) = x(j*Q), i.e.
+# p | X_m*Z_j - X_j*Z_m; accumulate those cross products and gcd once at the end.
+# Tests every mD ± j with gcd(j, D) = 1 rather than sieving primes out of (B1, B2] —
+# a ~3x overhead that avoids enumerating primes up to B2.
+# B2 = 25*B1 puts stage-2 cost at ~half of stage 1, which is throughput-optimal for
+# this linear-cost continuation: marginal returns decay like 1/(q*ln q) while the
+# cost per unit B2 is flat, so the optimum sits below cost balance.
+function _lenstra_stage2(N::T, X, Z, a24, B1) where T <: Integer
+    B2 = 25 * B1
+    D = 210
+    # baby steps: j*Q for odd j ≤ D/2, chained by Q_{j+2} = Q_j + 2Q (diff Q_{j-2})
+    nb = (D ÷ 2 + 1) ÷ 2
+    Xb = Vector{T}(undef, nb)
+    Zb = Vector{T}(undef, nb)
+    Xb[1], Zb[1] = X, Z
+    X2, Z2 = _xdbl(X, Z, a24, N)
+    Xp, Zp = X, Z
+    Xj, Zj = _xadd(X2, Z2, X, Z, X, Z, N)  # 3Q
+    Xb[2], Zb[2] = Xj, Zj
+    for idx in 3:nb
+        Xn, Zn = _xadd(Xj, Zj, X2, Z2, Xp, Zp, N)
+        Xp, Zp = Xj, Zj
+        Xj, Zj = Xn, Zn
+        Xb[idx], Zb[idx] = Xj, Zj
+    end
+    # giant steps: R = m*D*Q, stepping by D*Q
+    XD, ZD = _xladder(D, X, Z, a24, N)
+    m0 = fld(B1, D)
+    XRp, ZRp = _xladder(m0 - 1, XD, ZD, a24, N)
+    XR, ZR = _xladder(m0, XD, ZD, a24, N)
+    acc = T(1)
+    for m in m0:cld(B2, D)
+        for idx in 1:nb
+            j = 2idx - 1
+            gcd(j, D) == 1 || continue
+            acc = mod(acc*(mod(XR*Zb[idx], N) - mod(Xb[idx]*ZR, N)), N)
+        end
+        acc == 0 && return T(1)  # N divides the product: factor unrecoverable, next curve
+        XRn, ZRn = _xadd(XR, ZR, XD, ZD, XRp, ZRp, N)
+        XRp, ZRp = XR, ZR
+        XR, ZR = XRn, ZRn
+    end
+    g = gcd(acc, N)
+    return 1 < g < N ? g : T(1)
 end
 
 function factor!(n::T, h::AbstractDict{K,Int}) where {T<:Integer,K<:Integer}
