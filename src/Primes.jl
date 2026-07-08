@@ -7,7 +7,6 @@ import Base: iterate, eltype, IteratorSize, IteratorEltype
 using Base: BitSigned
 using Base.Checked: checked_neg
 using IntegerMathUtils
-import Random
 
 export isprime, primes, primesmask, factor, eachfactor, divisors, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
@@ -175,23 +174,19 @@ julia> isprime(4)
 false
 ```
 """
-# GMP-style probable-prime test in the operand's own arithmetic (BigInt has a
-# GMP-backed method and never reaches this). Like mpz_probab_prime_p in GMP
-# >= 6.2: trial division, BPSW, then reps - 24 extra Miller-Rabin rounds so
-# the error bound tracks GMP's for the same reps. The 4^-k Miller-Rabin bound
-# requires uniformly random bases; fixed base sets admit adversarial
-# composites (Arnault-style).
 function isprime(n::Integer, reps::Integer=25)
     n ≤ typemax(Int64) && return isprime(Int64(n))
+    # GMP-style probable-prime test in the operand's own arithmetic
+    # BPSW, then reps - 24 extra Miller-Rabin rounds so
+    # the error bound tracks GMP's for the same reps.
     iseven(n) && return false
     for m in (3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47)
         n % m == 0 && return false
     end
     miller_rabbin_test(2, n) || return false
     lucas_test(n) || return false
-    basesp = Random.Sampler(Random.default_rng(), oftype(n, 2):(n - 2))
     for _ in 1:max(reps - 24, 1)
-        miller_rabbin_test(rand(Random.default_rng(), basesp), n) || return false
+        miller_rabbin_test(rand(3:n-2), n) || return false
     end
     return true
 end
@@ -270,9 +265,8 @@ function miller_rabbin_test(a, n::T) where T<:Signed
 end
 
 function lucas_test(n::T) where T<:Signed
+    Base.hastypemax(T) && @assert n <= isqrt(typemax(T))
     s = isqrt(n)
-    # overflow is only possible for fixed-width types
-    T <: Base.BitInteger && @assert s <= typemax(T)
     s^2 == n && return false
     # find Lucas test params
     D::T = 5
