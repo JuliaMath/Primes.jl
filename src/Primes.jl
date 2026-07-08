@@ -7,6 +7,7 @@ import Base: iterate, eltype, IteratorSize, IteratorEltype
 using Base: BitSigned
 using Base.Checked: checked_neg
 using IntegerMathUtils
+import Random
 
 export isprime, primes, primesmask, factor, eachfactor, divisors, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
@@ -174,9 +175,25 @@ julia> isprime(4)
 false
 ```
 """
-function isprime(n::Integer)
+# GMP-style probable-prime test in the operand's own arithmetic (BigInt has a
+# GMP-backed method and never reaches this). Like mpz_probab_prime_p in GMP
+# >= 6.2: trial division, BPSW, then reps - 24 extra Miller-Rabin rounds so
+# the error bound tracks GMP's for the same reps. The 4^-k Miller-Rabin bound
+# requires uniformly random bases; fixed base sets admit adversarial
+# composites (Arnault-style).
+function isprime(n::Integer, reps::Integer=25)
     n ≤ typemax(Int64) && return isprime(Int64(n))
-    return isprime(BigInt(n))
+    iseven(n) && return false
+    for m in (3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47)
+        n % m == 0 && return false
+    end
+    miller_rabbin_test(2, n) || return false
+    lucas_test(n) || return false
+    basesp = Random.Sampler(Random.default_rng(), oftype(n, 2):(n - 2))
+    for _ in 1:max(reps - 24, 1)
+        miller_rabbin_test(rand(Random.default_rng(), basesp), n) || return false
+    end
+    return true
 end
 
 # Uses a polyalgorithm depending on the size of n.
@@ -254,7 +271,8 @@ end
 
 function lucas_test(n::T) where T<:Signed
     s = isqrt(n)
-    @assert s <= typemax(T) #to prevent overflow
+    # overflow is only possible for fixed-width types
+    T <: Base.BitInteger && @assert s <= typemax(T)
     s^2 == n && return false
     # find Lucas test params
     D::T = 5
@@ -309,7 +327,7 @@ julia> isprime(big(3))
 true
 ```
 """
-isprime(x::BigInt, reps=25) = x>1 && is_probably_prime(x; reps=reps)
+isprime(x::BigInt, reps::Integer=25) = x>1 && is_probably_prime(x; reps=reps)
 
 struct FactorIterator{T<:Integer}
     n::T
@@ -392,7 +410,7 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     if n <= 2^32 || isprime(n)
         return (n, 1), (T(1), n)
     end
-    should_widen = T <: BigInt || widemul(n - 1, n - 1) ≤ typemax(n)
+    should_widen = !Base.hastypemax(T) || widemul(n - 1, n - 1) ≤ typemax(n)
     p = should_widen ? pollardfactor(n) : pollardfactor(widen(n))
     num_p = 0
     while true
