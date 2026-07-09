@@ -272,11 +272,8 @@ end
 # Requires n^2 + 2n < typemax(T)
 function lucas_test(n::T) where T<:Integer
     isqrt(n)^2 == n && return false
-    # Selfridge parameters: P = 1 and D the first of 5, -7, 9, -11, ... (magnitude
-    # d, sign s) with kronecker(D, n) == -1. Since d < n, the residues of D and of
-    # Q = (1-D)/4 mod n are just d/n-d and small shifts -- no division needed.
-    # countfrom keeps d an Int; iterating 5:2:n would make d unsigned and wrap on
-    # the sign flip.
+    # Selfridge parameters: P = 1 and
+    # D the first of 5, -7, 9, -11, ... with kronecker(D, n) == -1.
     local Dr::T, Q::T, kr
     for (s, d) in zip(Iterators.cycle((1, -1)), Iterators.countfrom(5, 2))
         Dr = s > 0 ? T(d) : n - T(d)               # D mod n
