@@ -174,7 +174,7 @@ julia> isprime(4)
 false
 ```
 """
-function isprime(n::Integer, reps::Integer=25)
+function isprime(n::T, reps::Integer=25) where {T<:Integer}
     n ≤ typemax(Int64) && return isprime(Int64(n))
     # GMP-style probable-prime test in the operand's own arithmetic
     # BPSW, then reps - 24 extra Miller-Rabin rounds so
@@ -184,7 +184,12 @@ function isprime(n::Integer, reps::Integer=25)
         n % m == 0 && return false
     end
     miller_rabbin_test(2, n) || return false
-    lucas_test(n) || return false
+
+    if Base.hastypemax(T) && n >= isqrt(typemax(T))
+        lucas_test(widen(n)) || return false
+    else
+        lucas_test(n) || return false
+    end
     for _ in 1:max(reps - 24, 1)
         miller_rabbin_test(rand(3:n-2), n) || return false
     end
@@ -249,7 +254,7 @@ function _witnesses(n::UInt64)
     @inbounds return Int(bases[i])
 end
 
-function miller_rabbin_test(a, n::T) where T<:Signed
+function miller_rabbin_test(a, n::T) where T<:Integer
     s = trailing_zeros(n - 1)
     d = (n - 1) >>> s
     x::T = powermod(a, d, n)
@@ -264,32 +269,35 @@ function miller_rabbin_test(a, n::T) where T<:Signed
     return true
 end
 
-function lucas_test(n::T) where T<:Signed
-    Base.hastypemax(T) && @assert n <= isqrt(typemax(T))
-    s = isqrt(n)
-    s^2 == n && return false
-    # find Lucas test params
-    D::T = 5
-    for (s, d) in zip(Iterators.cycle((1,-1)), 5:2:n)
-        D = s*d
-        k = kronecker(D, n)
-        k != 1 && break
+# Requires n^2 + 2n < typemax(T)
+function lucas_test(n::T) where T<:Integer
+    isqrt(n)^2 == n && return false
+    # Selfridge parameters: P = 1 and D the first of 5, -7, 9, -11, ... (magnitude
+    # d, sign s) with kronecker(D, n) == -1. Since d < n, the residues of D and of
+    # Q = (1-D)/4 mod n are just d/n-d and small shifts -- no division needed.
+    # countfrom keeps d an Int; iterating 5:2:n would make d unsigned and wrap on
+    # the sign flip.
+    local Dr::T, Q::T, kr
+    for (s, d) in zip(Iterators.cycle((1, -1)), Iterators.countfrom(5, 2))
+        Dr = s > 0 ? T(d) : n - T(d)               # D mod n
+        Q  = s > 0 ? n - T((d - 1) >> 2) : T((d + 1) >> 2)  # (1-D)/4 mod n
+        kr = kronecker(Dr, n)
+        kr != 1 && break
     end
-    k == 0 && return false
-    # Lucas test with P=1
-    Q::T = (1-D) >> 2
+    kr == 0 && return false
     U::T, V::T, Qk::T = 1, 1, Q
-    k::T = (n + 1)
+    k::T = n + 1
     trail = trailing_zeros(k)
     k >>= trail
     # get digits 1 at a time since digits allocates
-    for b in ndigits(k,base=2)-2:-1:0
+    for b in ndigits(k, base=2)-2:-1:0
         U = mod(U*V, n)
-        V = mod(V * V - Qk - Qk, n)
-        Qk = mod(Qk*Qk, n)
-        if isodd(k>>b) == 1
-            Qk = mod(Qk*Q, n)
-            U, V = U + V, V + U*D
+        # V*V+2(n-Qk) rather than V*V-2*Qk to prevent Unsigned underflow
+        V = mod(V * V + 2*(n - Qk), n)
+        Qk = mod(Qk * Qk, n)
+        if isodd(k>>b)
+            Qk = mod(Qk * Q, n)
+            U, V = U + V, V + U*Dr
             # adding n makes them even
             # so we can divide by 2 without causing problems
             isodd(U) && (U += n)
@@ -298,12 +306,10 @@ function lucas_test(n::T) where T<:Signed
             V = mod(V >> 1, n)
         end
     end
-    if U in 0
-        return true
-    end
+    U == 0 && return true
     for _ in 1:trail
         V == 0 && return true
-        V = mod(V*V - Qk - Qk, n)
+        V = mod(V*V + 2*(n - Qk), n)
         Qk = mod(Qk * Qk, n)
     end
     return false
