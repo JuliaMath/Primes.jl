@@ -121,6 +121,38 @@ for seg_chunks in (1, 3, 7)
     @test ps == primes(7, 300_000)
 end
 
+# Narrow windows at large heights presieve to ~4W and isprime-filter survivors (rough sieve),
+# rather than sieving to isqrt(hi); the yielded primes must still be exactly correct.
+for (lo, W) in ((10^18, 1000), (10^15, 5000), (2 * 10^12, 2000), (10^9, 300))
+    hi = lo + W
+    @test collect(eachprime(lo, hi)) == [n for n in lo:hi if isprime(n)]
+end
+
+# eachprime/SegmentedSieve are generic over the integer type: narrow windows at heights beyond
+# Int64 (Int128, BigInt) sieve to ~W and isprime-filter, and must yield the correct typed primes.
+for lo in (Int128(10)^30, big(10)^40)
+    hi = lo + 3000
+    got = collect(eachprime(lo, hi))
+    @test eltype(got) === typeof(lo)
+    @test got == [n for n in lo:hi if isprime(n)]
+end
+
+# sieve_bound: survivors are the B-rough numbers (no prime factor ≤ B), a superset of the primes.
+let
+    rough(lo, hi, B) = (out = Int[];
+        for ss in Primes.SegmentedSieve(max(7, lo), hi; sieve_bound = B)
+            Primes.each_lane_prime(p -> push!(out, p), ss)
+        end; out)
+    oracle(lo, hi, B) = [v for v in max(7, lo):hi if all(v % p != 0 for p in primes(B))]
+    for (lo, hi, B) in ((10^6, 10^6 + 10^5, 50),          # B < COMB_THRESH
+                        (10^6, 10^6 + 10^5, 1000),        # COMB_THRESH ≤ B < isqrt(hi)
+                        (10^7, 10^7 + 3 * 10^5, 137))     # multi-window
+        @test rough(lo, hi, B) == oracle(lo, hi, B)
+    end
+    # B ≥ isqrt(hi) is an exact prime sieve, matching the default.
+    @test rough(10^6, 10^6 + 10^5, isqrt(10^6 + 10^5)) == primes(10^6, 10^6 + 10^5)
+end
+
 for T in [Int, BigInt], n = [1:1000;1000000]
     n = convert(T, n)
     f = factor(n)
