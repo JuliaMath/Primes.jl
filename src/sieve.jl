@@ -88,17 +88,14 @@ consume those windows.
 2, 3, 5 are the caller's responsibility (the wheel skips them).
 """
 mutable struct SegmentedSieve{T<:Integer}
-    win_block::T             # current window: first absolute block (block = value ÷ 30)
     lo::T
     hi::T
-    seg_chunks::Int          # lane size (64-block chunks per window), so windows stay chunk-aligned
-    # Large base primes (≥ COMB_THRESH) packed as 256·(p÷30) + wheel-index; p and p² reconstruct
-    # from these, so the raw prime values are never stored. Small primes are the COMB_PRIMES const.
-    # Sieving primes are bounded by feasibility (p ≲ 10^18), so this stays Int64 regardless of T.
-    stride_primes::Vector{Int64}
-    ncomb::Int               # active comb primes: COMB_PRIMES[1:ncomb] (those ≤ sieve_bound)
-    lanes::Vector{BitVector} # the current window: 8 lanes, ≤ 64·seg_chunks bits each
-    nchunks::Int             # current window: number of valid chunks (padding bits are zeroed)
+    win_block::T               # current window: first absolute block (block = value ÷ 30)
+    seg_chunks::Int            # lane size (64-block chunks per window), so windows stay chunk-aligned
+    stride_pack::Vector{Int64} # sieving primes (≥ COMB_THRESH) packed as 256·(p÷30) + wheel-index.
+    ncomb::Int                 # active comb primes: COMB_PRIMES[1:ncomb] (those ≤ sieve_bound)
+    lanes::Vector{BitVector}   # the current window: 8 lanes, ≤ 64·seg_chunks bits each
+    nchunks::Int               # current window: number of valid chunks (padding bits are zeroed)
 end
 
 # Optimal number of chunks per window. Low cap is 32 KiB/lane allowing for sieving within L1.
@@ -108,31 +105,28 @@ _seg_chunks(hi::Integer) = Int(clamp(isqrt(hi) >>> 3, 1 << 12, 1 << 18))  # clam
 # Chunk holding `lo` (window starts are chunk-aligned)
 _first_chunk(lo::Integer) = fld(lo, 30) >>> 6
 
-# `sieve_bound` limits sieving to primes ≤ it: survivors are then the `sieve_bound`-rough numbers
-# in [lo, hi] (no prime factor ≤ sieve_bound), a superset of the primes. The default isqrt(hi)
-# gives an exact prime sieve. 2, 3, 5 are always the caller's responsibility (the wheel skips them).
+# `sieve_bound > 5` limits sieving to return `sieve_bound`-rough numbers in [lo, hi] (no prime factor ≤ sieve_bound)
+# The default isqrt(hi) gives an exact prime sieve.
+# 2, 3, 5 are always the caller's responsibility (the wheel skips them).
 function SegmentedSieve(lo::T, hi::T; seg_chunks::Int = _seg_chunks(hi),
-                        sieve_bound::Integer = isqrt(hi)) where {T<:Integer}
+                        sieve_bound::Integer = typemax(Int)) where {T<:Integer}
     lo = max(T(7), lo)
-    # Decompose the stride primes (≥ COMB_THRESH; smaller ones are the comb) into 256·(p÷30) +
-    # wheel-index once. Stream them with eachprime so we never allocate the full base-prime vector.
-    # The sieving-prime ceiling `sq` is small (a feasible sieve can't hold more base primes), so it
-    # fits Int even when the endpoints do not, and the packing bound below is far past any real sieve.
-    stride_primes = Int64[]
-    sqT = min(isqrt(hi), sieve_bound)
-    sqT ≤ 30 * (typemax(Int64) ÷ 256) ||
-        throw(ArgumentError("sieve_bound $sieve_bound exceeds the supported ceiling ~10^18"))
-    sq = Int(sqT)
-    if sq ≥ COMB_THRESH
-        for p in eachprime(COMB_THRESH, sq)
+    # Decompose the stride primes (p<COMB_THRESH are in the comb) into 256·(p÷30) + wheel-index.
+    # Stream them with eachprime to limit allocation.
+    # The sieving-primes can be kept in Int64 because storing all primes < 2^64 would OOM anyway.
+    stride_pack = Int64[]
+    max_prime = min(isqrt(hi), sieve_bound)
+    max_prime ≤ 30 * (typemax(Int64) ÷ 256) || throw(ArgumentError("sieve_bound $max_prime exceeds the supported ceiling ~10^18."))
+    if max_prime ≥ COMB_THRESH
+        for p in eachprime(COMB_THRESH, Int(max_prime))
             pq, pr = divrem(p, 30)
-            push!(stride_primes, 256 * pq + WHEEL_IDX[pr + 1])
+            push!(stride_pack, 256 * pq + WHEEL_IDX[pr + 1])
         end
     end
-    ncomb = count(≤(sq), COMB_PRIMES)
+    ncomb = searchsortedlast(COMB_PRIMES, Int(max_prime))
     num_chunks = Int(min(seg_chunks, cld(fld(hi, 30) + 1, 64) - _first_chunk(lo)))
     lanes = [BitVector(undef, num_chunks << 6) for _ in 1:8]
-    return SegmentedSieve{T}(zero(T), lo, hi, seg_chunks, stride_primes, ncomb, lanes, 0)
+    return SegmentedSieve{T}(lo, hi, zero(T), seg_chunks, stride_pack, ncomb, lanes, 0)
 end
 
 Base.IteratorSize(::Type{<:SegmentedSieve}) = Base.SizeUnknown()
@@ -175,13 +169,13 @@ function Base.iterate(ss::SegmentedSieve{T}, win_chunk::T = _first_chunk(ss.lo))
                 chunks[b >>> 6 + 1] |= UInt64(1) << (b & 63)
             end
         end
-        for packed in ss.stride_primes                 # large primes: scalar stride clear
+        for packed in ss.stride_pack                    # large primes: scalar stride clear
             # Reconstruct p and p²÷30 from (pq, residue class) — no division. res_block is the phase:
             # lane-w multiples sit at blocks ≡ res_block (mod p). The only division left is mod p.
             pq, pri = packed >> 8, packed & 0xff        # packed = 256·(p÷30) + wheel-index, packed ≥ 0
             r = wheel[pri]
             p = 30 * pq + r
-            p > max_prime && break                     # primes are ascending; rest are too big for this window
+            p > max_prime && break                      # primes are ascending; rest are too big for this window
             res_block = pq * STRIDE_KW[pri][lane] + STRIDE_C[pri][lane]
             # min_block = cld(p²-w, 30): first block ≥ p². p² can exceed Int for large-T sieves, so
             # this absolute block is computed in T; the relative `local_start` below is back in Int.
@@ -253,8 +247,8 @@ end
 end
 
 # Call f(prime) for each prime in the filled window, in ascending order.
-function each_lane_prime(f, ss::SegmentedSieve{T}) where {T}
-    win_block = ss.win_block                                    # T; yielded values are T
+function each_lane_prime(f, ss::SegmentedSieve)
+    win_block = ss.win_block
     chunks = ntuple(i -> ss.lanes[i].chunks, Val(8))            # the 8 lanes' word arrays
     nchunks = ss.nchunks
     @inbounds for chunk in 1:nchunks
@@ -319,22 +313,21 @@ end
 """
     eachprime([lo,] hi)
 
-Lazily iterate the primes in `[lo, hi]` (from 2 if `lo` is omitted) in increasing order.
+Lazily iterate the primes in `[lo, hi]` (from 1 if `lo` is omitted) in increasing order.
 """
 function eachprime(lo::Integer, hi::Integer)
     lo ≤ hi || throw(ArgumentError("The condition lo ≤ hi must be met."))
     lo, hi = promote(lo, hi)
     T = typeof(hi)
-    # Narrow window at large height: sieving all the way to √hi costs Θ(√hi) regardless of window
-    # width W. When W < √hi/150 it is cheaper to presieve only to k ≈ W (killing composites down to
-    # a small-factor floor) and BPSW-test the survivors — see docs/design/narrow-window-primes.md.
-    # In that regime the sieve yields W-rough numbers (a superset of primes), so we isprime-filter.
-    # A bound of W is the empirical optimum: below it, surviving composites (needing isprime) grow
-    # faster than the sieving saved; above it, sieving cost grows. The bowl is shallow near W.
-    sq = isqrt(hi)
     W = hi - max(T(7), lo)
-    bound = W < sq ÷ 150 ? clamp(W, T(1000), sq) : sq
-    verify = bound < sq
+    # Sieving a window W by all primes < k costs O(k / log(k) + W * log(log(k)))
+    # sieving fully requres k = √hi, so When W << √hi, we can instead 
+    # sieve to a lower k and primality check survivors.
+    # By sieving to k leaves O(W / log(k)) survivors, so primality check costs O(W * log^2(hi) / log(k))
+    # Thus setting k=W, gives a cost of O(W / log(W) * log^2(hi) + W * log(log(W))) << O(√hi)
+    sqrthi = isqrt(hi)
+    bound = 1000 < W < sqrthi ÷ 150 ? W : sqrthi
+    verify = bound < sqrthi
     sieve = hi < 7 ? nothing : SegmentedSieve(max(T(7), lo), hi; sieve_bound = bound)
     next_chunk = sieve === nothing ? zero(T) : _first_chunk(sieve.lo)
     return EachPrime{T}(lo, hi, sieve, next_chunk, T[], 1, 0, verify)
