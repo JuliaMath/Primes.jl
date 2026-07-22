@@ -137,6 +137,20 @@ for lo in (Int128(10)^30, big(10)^40)
     @test got == [n for n in lo:hi if isprime(n)]
 end
 
+# Unsigned windows above typemax(Int64): the block-phase offset must not underflow (it once did,
+# silently mis-sieving). Every integer type over the same range must yield identical primes.
+let W = 10^6
+    for lo in (UInt(10)^19, UInt(2)^63 + 1)
+        hi = lo + W
+        ref = collect(eachprime(Int128(lo), Int128(hi)))
+        for T in (UInt64, UInt128, Int128)
+            got = collect(eachprime(T(lo), T(hi)))
+            @test eltype(got) === T
+            @test got == ref
+        end
+    end
+end
+
 # sieve_bound: survivors are the B-rough numbers (no prime factor ≤ B), a superset of the primes.
 let
     rough(lo, hi, B) = (out = Int[];
@@ -198,6 +212,16 @@ end
 for T in [Int8, UInt8, Int16, UInt16, Int128, UInt128]
     @test isprime(T(2))
     @test !isprime(T(4))
+end
+
+# Values in (2^63, 2^64) are deterministic via the UInt64 path; wider types must narrow to it and
+# agree (and not allocate — for Int128 that means avoiding a BigInt-widening `widemul`).
+let p = 0xffffffffffffffc5, c = 0xffffffffffffffc7   # a prime and a composite just below 2^64
+    for T in (UInt64, Int128, UInt128, BigInt)
+        @test isprime(T(p))
+        @test !isprime(T(c))
+    end
+    @test (@allocated isprime(Int128(p))) == 0
 end
 
 

@@ -182,7 +182,12 @@ function Base.iterate(ss::SegmentedSieve{T}, win_chunk::T = _first_chunk(ss.lo))
             pqT = T(pq)
             min_block = 30 * pqT * pqT + 2 * pqT * r + STRIDE_PSQ_DIV[pri] + (STRIDE_PSQ_RES[pri] > w)
             from_block = max(min_block, win_block)
-            start_block = from_block + mod(res_block - from_block, p)
+            # First block ≥ from_block that is ≡ res_block (mod p). res_block is the block of the smallest
+            # lane-w multiple p·STRIDE_KW, and STRIDE_KW < 30, so res_block < p. Stride primes are ≥ COMB_THRESH > 30,
+            # hence from_block ≥ min_block ≈ p²/30 ≥ p > res_block, so from_block - res_block never underflows; this
+            # is mod(res_block - from_block, p) rewritten to stay non-negative (correct for unsigned T too).
+            gap = (from_block - res_block) % p
+            start_block = gap == 0 ? from_block : from_block + (p - gap)
             local_start = Int(start_block - win_block)
             local_start < nblocks && stride_clear!(chunks, local_start, p, nblocks)
         end
