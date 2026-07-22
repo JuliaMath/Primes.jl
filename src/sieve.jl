@@ -118,6 +118,7 @@ function SegmentedSieve(lo::T, hi::T; seg_chunks::Int = _seg_chunks(hi),
     max_prime = min(isqrt(hi), sieve_bound)
     max_prime ≤ 30 * (typemax(Int64) ÷ 256) || throw(ArgumentError("sieve_bound $max_prime exceeds the supported ceiling ~10^18."))
     if max_prime ≥ COMB_THRESH
+        sizehint!(stride_pack, floor(Int, max_prime / (log(max_prime) - 1.12)) - length(COMB_PRIMES)) # http://projecteuclid.org/euclid.rmjm/1181070157
         for p in eachprime(COMB_THRESH, Int(max_prime))
             pq, pr = divrem(p, 30)
             push!(stride_pack, 256 * pq + WHEEL_IDX[pr + 1])
