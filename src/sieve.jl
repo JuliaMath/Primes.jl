@@ -175,10 +175,10 @@ function Base.iterate(ss::SegmentedSieve{T}, win_chunk::T = _first_chunk(ss.lo))
                 chunks[b >>> 6 + 1] |= UInt64(1) << (b & 63)
             end
         end
-        for code in ss.stride_primes                   # large primes: scalar stride clear
+        for packed in ss.stride_primes                 # large primes: scalar stride clear
             # Reconstruct p and p²÷30 from (pq, residue class) — no division. res_block is the phase:
             # lane-w multiples sit at blocks ≡ res_block (mod p). The only division left is mod p.
-            pq, pri = fldmod(code, 256)
+            pq, pri = packed >> 8, packed & 0xff        # packed = 256·(p÷30) + wheel-index, packed ≥ 0
             r = wheel[pri]
             p = 30 * pq + r
             p > max_prime && break                     # primes are ascending; rest are too big for this window
