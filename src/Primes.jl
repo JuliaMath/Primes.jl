@@ -315,20 +315,15 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     if n <= 2^32 || isprime(n)
         return (n, 1), (T(1), n)
     end
-    # check for n=root^r
-    r = cld(ndigits(n, base=2), ndigits(N_SMALL_FACTORS, base=2))
-    root = iroot(n, r)
-    while r >= 2
-        if root^r == n
-            if isprime(root)
-                return (root, r), (1, root+2)
-            else
-                f = first(eachfactor(root))
-                return f, (n÷f, root+2)
-            end
-        end
-        r -= 1
+    if ispower(n) # check for n=root^r
+        r = find_exponent(n)
         root = iroot(n, r)
+        if isprime(root)
+            return (root, r), (1, root+2)
+        else
+            f = first(eachfactor(root))
+            return f, (n÷f, root+2)
+        end
     end
 
     # lenstrafactor's modular arithmetic needs intermediates up to 2n^2
