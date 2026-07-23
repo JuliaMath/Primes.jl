@@ -121,6 +121,52 @@ for seg_chunks in (1, 3, 7)
     @test ps == primes(7, 300_000)
 end
 
+# Narrow windows at large heights presieve to ~4W and isprime-filter survivors (rough sieve),
+# rather than sieving to isqrt(hi); the yielded primes must still be exactly correct.
+for (lo, W) in ((10^18, 1000), (10^15, 5000), (2 * 10^12, 2000), (10^9, 300))
+    hi = lo + W
+    @test collect(eachprime(lo, hi)) == [n for n in lo:hi if isprime(n)]
+end
+
+# eachprime/SegmentedSieve are generic over the integer type: narrow windows at heights beyond
+# Int64 (Int128, BigInt) sieve to ~W and isprime-filter, and must yield the correct typed primes.
+for lo in (Int128(10)^30, big(10)^40)
+    hi = lo + 3000
+    got = collect(eachprime(lo, hi))
+    @test eltype(got) === typeof(lo)
+    @test got == [n for n in lo:hi if isprime(n)]
+end
+
+# Unsigned windows above typemax(Int64): the block-phase offset must not underflow (it once did,
+# silently mis-sieving). Every integer type over the same range must yield identical primes.
+let W = 10^6
+    for lo in (UInt(10)^19, UInt(2)^63 + 1)
+        hi = lo + W
+        ref = collect(eachprime(Int128(lo), Int128(hi)))
+        for T in (UInt64, UInt128, Int128)
+            got = collect(eachprime(T(lo), T(hi)))
+            @test eltype(got) === T
+            @test got == ref
+        end
+    end
+end
+
+# sieve_bound: survivors are the B-rough numbers (no prime factor ≤ B), a superset of the primes.
+let
+    rough(lo, hi, B) = (out = Int[];
+        for ss in Primes.SegmentedSieve(max(7, lo), hi; sieve_bound = B)
+            Primes.each_lane_prime(p -> push!(out, p), ss)
+        end; out)
+    oracle(lo, hi, B) = [v for v in max(7, lo):hi if all(v % p != 0 for p in primes(B))]
+    for (lo, hi, B) in ((10^6, 10^6 + 10^5, 50),          # B < COMB_THRESH
+                        (10^6, 10^6 + 10^5, 1000),        # COMB_THRESH ≤ B < isqrt(hi)
+                        (10^7, 10^7 + 3 * 10^5, 137))     # multi-window
+        @test rough(lo, hi, B) == oracle(lo, hi, B)
+    end
+    # B ≥ isqrt(hi) is an exact prime sieve, matching the default.
+    @test rough(10^6, 10^6 + 10^5, isqrt(10^6 + 10^5)) == primes(10^6, 10^6 + 10^5)
+end
+
 for T in [Int, BigInt], n = [1:1000;1000000]
     n = convert(T, n)
     f = factor(n)
@@ -166,6 +212,16 @@ end
 for T in [Int8, UInt8, Int16, UInt16, Int128, UInt128]
     @test isprime(T(2))
     @test !isprime(T(4))
+end
+
+# Values in (2^63, 2^64) are deterministic via the UInt64 path; wider types must narrow to it and
+# agree (and not allocate — for Int128 that means avoiding a BigInt-widening `widemul`).
+let p = 0xffffffffffffffc5, c = 0xffffffffffffffc7   # a prime and a composite just below 2^64
+    for T in (UInt64, Int128, UInt128, BigInt)
+        @test isprime(T(p))
+        @test !isprime(T(c))
+    end
+    @test (@allocated isprime(Int128(p))) == 0
 end
 
 

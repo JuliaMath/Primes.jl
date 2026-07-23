@@ -84,7 +84,10 @@ false
 ```
 """
 function isprime(n::T, reps::Integer=25) where {T<:Integer}
-    n ≤ typemax(Int64) && return isprime(Int64(n))
+    n < 2 && return false
+    # Everything below 2^64 uses the deterministic UInt64 path (hardware UInt128 arithmetic); for wider
+    # T (e.g. Int128) staying in T would make `widemul` widen to BigInt and allocate.
+    n ≤ typemax(UInt64) && return isprime(UInt64(n))
     # GMP-style probable-prime test in the operand's own arithmetic
     # BPSW, then reps - 24 extra Miller-Rabin rounds so
     # the error bound tracks GMP's for the same reps.
@@ -115,7 +118,7 @@ end
 # For more background on fast primality testing, see:
 #     http://ntheory.org/pseudoprimes.html
 #     http://ntheory.org/pseudoprimes.html
-function isprime(n::Int64)
+function isprime(n::UInt64)
     iseven(n) && return n == 2
     if n < N_SMALL_FACTORS
         n < 2 && return false
@@ -125,7 +128,7 @@ function isprime(n::Int64)
         n % m == 0 && return false
     end
     if n < 2^32
-        return miller_rabbin_test(_witnesses(UInt64(n)), n)
+        return miller_rabbin_test(_witnesses(n), n)
     end
     miller_rabbin_test(2, n) || return false
     return lucas_test(widen(n))
