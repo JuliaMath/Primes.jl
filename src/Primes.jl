@@ -319,10 +319,10 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
         r = find_exponent(n)
         root = iroot(n, r)
         if isprime(root)
-            return (root, r), (1, root+2)
+            return (root, r), (T(1), root+2)
         else
-            f = first(eachfactor(root))
-            return f, (n÷f, root+2)
+            f, e = first(eachfactor(root))
+            return (f, e*r), (n÷(f^(e*r)), root+2)
         end
     end
 
@@ -446,6 +446,7 @@ end
 function _lenstra_stage2(N::T, X, Z, a24, B1) where T <: Integer
     B2 = 25 * B1
     D = 210
+    B1 < D && return T(1)   # m0 = fld(B1,D) would be 0; giant-step recurrence needs m0 ≥ 2
     # baby steps: j*Q for odd j ≤ D/2, chained by Q_{j+2} = Q_j + 2Q (diff Q_{j-2})
     nb = (D ÷ 2 + 1) ÷ 2
     Xb = Vector{T}(undef, nb)

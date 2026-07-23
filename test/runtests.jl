@@ -192,6 +192,15 @@ end
 # unsigned inputs route through lenstrafactor's signed-domain conversion
 @test factor(UInt64(2147483659) * UInt64(2147484679)) == Dict(2147483659 => 1, 2147484679 => 1)
 
+# perfect powers of a *composite* root (n = root^r, root not prime) go through the
+# ispower branch, which must peel the root's smallest prime with the right multiplicity
+let p = Int128(65537), q = Int128(65539)
+    # (p*q)^2 = p^2*q^2: root = p*q (each multiplicity 1)
+    @test factor((p*q)^2) == Dict(p => 2, q => 2)
+    # (p^2*q)^2 = p^4*q^2: root = p^2*q, so the smallest prime peels with multiplicity e*r = 2*2
+    @test factor((p^2*q)^2) == Dict(p => 4, q => 2)
+end
+
 for n = 1:100
     m = 1
     for (p,k) in factor(n)
@@ -271,6 +280,15 @@ for T in (Int32, Int64, BigInt)
     for (p,e) in eachfactor(T(901800900))
         @test (p,e) isa Tuple{T, Int}
     end
+end
+
+# the state tuple must stay type-stable across every branch, including the
+# perfect-power branches, which build the returned n-slot explicitly. These need
+# n > 2^32 with a perfect-power shape to reach the ispower branches (regression
+# test for the `1` vs `T(1)` literal that made the n-slot Int rather than T).
+for T in (Int64, Int128, BigInt)
+    @inferred Nothing iterate(eachfactor(T(65537)^2))              # prime root -> isprime-root branch
+    @inferred Nothing iterate(eachfactor(T(65537)^2 * T(65539)^2)) # composite root branch
 end
 
 # Lucas-Lehmer
