@@ -347,46 +347,58 @@ function _combine_partials(r::SmoothRelation, single::SmoothRelation,
 end
 
 """
-    _gf2_eliminate(relations) -> Vector{Vector{Int}}
+    _gf2_eliminate(relations; max_deps=64) -> Vector{Vector{Int}}
 
-GF(2) Gaussian elimination on parity vectors. Returns dependency sets (indices
-that XOR to zero). For the matrix sizes MPQS reaches (up to ~10K) plain Gaussian
-elimination beats Block Lanczos on overhead.
+GF(2) dependencies among parity vectors: sets of relation indices whose vectors XOR
+to zero, at most `max_deps` of them.
 """
-function _gf2_eliminate(relations::Vector{BitVector})::Vector{Vector{Int}}
-    nrels = length(relations)
-    nrels == 0 && return Vector{Int}[]
+function _gf2_eliminate(relations::Vector{BitVector}; max_deps::Int=64)::Vector{Vector{Int}}
+    nr = length(relations)
+    nr == 0 && return Vector{Int}[]
+    m = length(relations[1])
 
-    matrix = [copy(r) for r in relations]
-    history = [falses(nrels) for _ in 1:nrels]
-    for i in 1:nrels
-        history[i][i] = true
+    # Column j of `mat` is prime equation j: bit r is set when relation r has an odd
+    # exponent of that prime.
+    nw = cld(nr, 64)
+    mat = zeros(UInt64, nw, m)
+    for (r, rel) in enumerate(relations), j in findall(rel)
+        mat[(r - 1) >> 6 + 1, j] |= UInt64(1) << ((r - 1) & 63)
     end
-    ncols = length(relations[1])
-    pivot_col = zeros(Int, ncols)
 
-    for i in 1:nrels
-        pivot = findfirst(matrix[i])
-        while pivot !== nothing
-            if pivot_col[pivot] == 0
-                pivot_col[pivot] = i
-                break
-            else
-                pr = pivot_col[pivot]
-                matrix[i] .⊻= matrix[pr]
-                history[i] .⊻= history[pr]
-                pivot = findfirst(matrix[i])
+    # Gauss-Jordan over the equations, pivoting on relations. No elimination history
+    # is kept: the null space is read off the reduced matrix afterwards.
+    pivot_of = fill(-1, m)
+    is_pivot = falses(nr)
+    @inbounds for i in 1:m
+        w = findfirst(!iszero, @view mat[:, i])
+        w === nothing && continue
+        piv = (w - 1) * 64 + trailing_zeros(mat[w, i])
+        pivot_of[i] = piv
+        is_pivot[piv + 1] = true
+        pbit = UInt64(1) << (piv & 63)
+        for j in 1:m
+            if j != i && mat[w, j] & pbit != 0
+                for k in w:nw   # words below w are zero in equation i
+                    mat[k, j] ⊻= mat[k, i]
+                end
             end
         end
     end
 
-    dependencies = Vector{Int}[]
-    for i in 1:nrels
-        if !any(matrix[i])
-            push!(dependencies, findall(history[i]))
+    # Each free relation f gives one dependency: f together with the pivot relation of
+    # every equation that still contains f.
+    deps = Vector{Int}[]
+    for f in 0:nr-1
+        is_pivot[f + 1] && continue
+        fw, fbit = f >> 6 + 1, UInt64(1) << (f & 63)
+        dep = [f + 1]
+        for i in 1:m
+            pivot_of[i] >= 0 && mat[fw, i] & fbit != 0 && push!(dep, pivot_of[i] + 1)
         end
+        push!(deps, dep)
+        length(deps) == max_deps && break
     end
-    return dependencies
+    return deps
 end
 
 """
