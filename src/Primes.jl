@@ -13,6 +13,7 @@ export isprime, primes, primesmask, eachprime, factor, eachfactor, divisors, ism
 
 include("factorization.jl")
 include("sieve.jl")
+include("mpqs.jl")
 
 """
     primes([lo,] hi)
@@ -329,9 +330,7 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
         end
     end
 
-    # lenstrafactor's modular arithmetic needs intermediates up to 2n^2
-    fits = !Base.hastypemax(T) || widemul(n, n) ≤ typemax(n) ÷ 2
-    p = fits ? lenstrafactor(n) : lenstrafactor(widen(n))
+    p = _large_factor(n)
     num_p = 0
     while true
         q, r = divrem(n, p)
@@ -341,30 +340,81 @@ function iterate(f::FactorIterator{T}, state=(f.n, T(3))) where T
     end
 end
 
+# Range of n for which sieving is the right tool. Below MPQS_MIN_DIGITS the sieve
+# cannot repay its setup: measured on balanced semiprimes, ECM wins at 16 digits and
+# MPQS from 20 on. Above MPQS_MAX_DIGITS the parameter table stops tracking n.
+const MPQS_MIN_DIGITS = 18
+const MPQS_MAX_DIGITS = 76
+
+"""
+    _large_factor(n) -> prime factor of n
+
+Split `n`, which the factor iterator has already established is composite and not a
+perfect power.
+
+ECM's cost is set by the size of the smallest factor and MPQS's by the size of `n`,
+and which regime `n` is in is not known up front, so run ECM only while it is cheaper
+than the sieve it would replace. Measured against a full MPQS run, that budget is one
+tier at 45 digits and two at 55 — the tiers get expensive fast, tier 3 costing 25s
+against a 4s sieve at 55 digits — which `digits/5` reproduces.
+
+Outside the sieve's range there is no such trade and ECM runs unbounded: below it a
+sieve cannot repay its setup, and above it a sieve would not finish, while ECM can
+still turn up a small factor of a very large `n` at merely polynomial cost.
+"""
+function _large_factor(n::T) where {T<:Integer}
+    # lenstrafactor's modular arithmetic needs intermediates up to 2n^2
+    fits = !Base.hastypemax(T) || widemul(n, n) ≤ typemax(n) ÷ 2
+    digits = ndigits(n)
+    if MPQS_MIN_DIGITS <= digits <= MPQS_MAX_DIGITS
+        tiers = _ecm_tiers_for(cld(digits, 5))
+        res = fits ? _lenstra_tiers(n, tiers) : _lenstra_tiers(widen(n), tiers)
+        p = res === nothing ? mpqs_factor(n) : res
+    else
+        p = fits ? lenstrafactor(n) : lenstrafactor(widen(n))
+    end
+    q = T(p)
+    # Both backends can hand back a composite; reduce it to a prime.
+    return isprime(q) ? q : first(first(eachfactor(q)))
+end
+
 # the curve arithmetic uses plain +/- with negative intermediates, so run
 # unsigned inputs in the equally-sized signed domain (the widening check
 # already caps n^2 ≤ typemax(n)÷2, so n fits the signed type)
 lenstrafactor(n::Unsigned) = lenstrafactor(signed(typeof(n))(n))
 
-function lenstrafactor(n::T; use_stage2::Bool=true) where{T<:Integer}
-    # bounds and runs per bound taken from
-    # https://www.rieselprime.de/ziki/Elliptic_curve_method
-    # the 200 tier is a cheap pre-pass that catches most factors ≤ ~20 bits
-    B1s = Int[200, 2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
-                43e6, 11e7, 26e7, 85e7, 29e8, 76e8, 25e9]
-    # published counts assume GMP-ECM's much larger B2; scaled 1.5x for B2 = 25*B1
-    runs = Int[6, 38, 135, 450, 1050, 2700, 7650, 2700, 15900,
-              29000, 73500, 186000, 315000, 510000, 15*10^5, 15*10^6]
-    for (B1, run) in zip(B1s, runs)
+# bounds and runs per bound taken from
+# https://www.rieselprime.de/ziki/Elliptic_curve_method
+# the 200 tier is a cheap pre-pass that catches most factors ≤ ~20 bits
+const ECM_B1S = Int[200, 2e3, 11e3, 5e4, 25e4, 1e6, 3e6, 11e6,
+                    43e6, 11e7, 26e7, 85e7, 29e8, 76e8, 25e9]
+# published counts assume GMP-ECM's much larger B2; scaled 1.5x for B2 = 25*B1
+const ECM_RUNS = Int[6, 38, 135, 450, 1050, 2700, 7650, 2700, 15900,
+                     29000, 73500, 186000, 315000, 510000, 15*10^5, 15*10^6]
+
+# Tier i of the table above is sized to find factors of roughly 5i+5 digits, so this
+# is the number of tiers to run to have a good chance at a `digits`-digit factor.
+_ecm_tiers_for(digits::Integer) = clamp(cld(digits - 5, 5), 1, length(ECM_B1S))
+
+# Run the first `tiers` ECM tiers. Returns a nontrivial factor, or nothing if every
+# curve failed — the factor may be composite.
+function _lenstra_tiers(n::T, tiers::Int; use_stage2::Bool=true) where {T<:Integer}
+    for i in 1:tiers
+        B1 = ECM_B1S[i]
         small_primes = primes(B1)
-        for σ in 6:2*run+6
+        for σ in 6:2*ECM_RUNS[i]+6
             res = lenstra_stage_1(n, σ, small_primes, B1; use_stage2)
-            if res != 1
-                return isprime(res) ? res : lenstrafactor(res; use_stage2)
-            end
+            res != 1 && return res
         end
     end
-    throw(ArgumentError("This number is too big to be factored with this algorithm effectively"))
+    return nothing
+end
+
+function lenstrafactor(n::T; use_stage2::Bool=true) where{T<:Integer}
+    res = _lenstra_tiers(n, length(ECM_B1S); use_stage2)
+    res === nothing &&
+        throw(ArgumentError("This number is too big to be factored with this algorithm effectively"))
+    return isprime(res) ? res : lenstrafactor(res; use_stage2)
 end
 
 # x-only arithmetic on Montgomery curves B*y^2 = x^3 + A*x^2 + x, projective X:Z.
