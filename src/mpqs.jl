@@ -14,6 +14,8 @@ struct MPQSContext
     fb_size::Int
     sqrt_kn_mod::Vector{Int}
     sieve_interval::Int
+    # ceil(2^64 / p): d < 2^32 is divisible by p iff d * magic ≤ magic - 1 (wrapping)
+    fb_magic::Vector{UInt64}
 end
 
 """
@@ -31,7 +33,17 @@ struct SmoothRelation
     a_indices::Vector{Int}  # FB indices of primes composing polynomial `a`
     large_prime::Int     # first unfactored prime (0 if fully smooth)
     large_prime2::Int    # second unfactored prime (0 if single LP or smooth)
+    squared_lps::Vector{Int} # large primes that combining has squared; each adds one factor to y
 end
+
+# Partials waiting for a partner. `single` holds one relation per large prime, kept so
+# that every later relation sharing that prime combines with it. `waiting` indexes
+# double-large-prime relations under both primes until one of them lands in `single`.
+struct PartialPool
+    single::Dict{Int, SmoothRelation}
+    waiting::Dict{Int, Vector{SmoothRelation}}
+end
+PartialPool() = PartialPool(Dict{Int, SmoothRelation}(), Dict{Int, Vector{SmoothRelation}}())
 
 # A polynomial is the triple (a, b, c) in the working type `T`, where
 # c = (b² - kn) / a, so that g(x) = Q(x)/a = a·x² + 2b·x + c can be evaluated
@@ -200,6 +212,50 @@ function _tonelli_shanks(n::Int, p::Int)::Int
 end
 
 """
+Divide the factor base out of `remainder`, from prime `j0` on, recording exponents.
+Returns `(remainder, next_j, status)`: status 0 when the scan finished or the remainder
+reached 1; `j > 0` when it stopped at prime j with remainder < p_j², so what is left is
+1 or a prime; -1 when a BigInt remainder first fits Int128.
+"""
+@inline function _tf_scan!(remainder::R, j0::Int, ctx::MPQSContext, pos0::Int,
+                           offset1::Vector{Int}, offset2::Vector{Int},
+                           exponents::BitVector, full_exp::Vector{Int32}) where {R<:Integer}
+    fb = ctx.factor_base
+    @inbounds for j in j0:ctx.fb_size
+        p = fb[j]
+        o1 = offset1[j]
+        # o1 < 0 marks a prime with no sieve root, which is divided directly instead.
+        if o1 >= 0
+            # A hardware `rem` per prime per candidate dominates otherwise. Adding p keeps
+            # the difference positive; it stays below 2M + 1 + p < 2^32.
+            magic = ctx.fb_magic[j]
+            hit = (pos0 - o1 + p) % UInt64 * magic <= magic - 1
+            if !hit
+                o2 = offset2[j]
+                hit = (o2 != o1) && (pos0 - o2 + p) % UInt64 * magic <= magic - 1
+            end
+            hit || continue
+        end
+
+        pR = R(p)
+        cnt = Int32(0)
+        while true
+            q, r = divrem(remainder, pR)
+            iszero(r) || break
+            cnt += Int32(1)
+            remainder = q
+        end
+        cnt == 0 && continue
+        full_exp[j + 1] = cnt
+        exponents[j + 1] = isodd(cnt)
+        isone(remainder) && return remainder, j + 1, 0
+        remainder < pR * pR && return remainder, j + 1, j
+        R === BigInt && ndigits(remainder, base=2) < 128 && return remainder, j + 1, -1
+    end
+    return remainder, ctx.fb_size + 1, 0
+end
+
+"""
 Root-guided trial factoring of g(x), which is held in the working type `T`.
 `exponents` and `full_exp` are zeroed and filled in-place to avoid allocation.
 Returns a SmoothRelation or nothing.
@@ -217,67 +273,21 @@ Returns a SmoothRelation or nothing.
     # Reset buffers
     fill!(exponents, false)
     fill!(full_exp, Int32(0))
-    remainder = abs(gx)
 
     if gx < 0
         exponents[1] = true
         full_exp[1] = Int32(1)
     end
 
-    early_exit_j = fb_size + 1  # sentinel: no early exit
     # Roots are 0-based (sieve position offset+1), so compare against sieve_pos - 1.
     pos0 = sieve_pos - 1
-    @inbounds for j in 1:fb_size
-        p = fb[j]
-        pT = T(p)
-        o1 = offset1[j]
-        if o1 < 0
-            # Prime with no stored sieve position — brute force check
-            q, r = divrem(remainder, pT)
-            if iszero(r)
-                cnt = Int32(1)
-                remainder = q
-                while true
-                    q, r = divrem(remainder, pT)
-                    iszero(r) || break
-                    cnt += Int32(1)
-                    remainder = q
-                end
-                full_exp[j + 1] = cnt
-                exponents[j + 1] = isodd(cnt)
-                if isone(remainder)
-                    break
-                elseif remainder < pT * pT
-                    early_exit_j = j
-                    break
-                end
-            end
-            continue
-        end
-        hit = (rem(pos0 - o1, p) == 0)
-        if !hit
-            o2 = offset2[j]
-            hit = (o2 != o1) && (rem(pos0 - o2, p) == 0)
-        end
-        hit || continue
-
-        # p divides g(x) — extract all powers
-        cnt = Int32(0)
-        while true
-            q, r = divrem(remainder, pT)
-            iszero(r) || break
-            cnt += Int32(1)
-            remainder = q
-        end
-        full_exp[j + 1] = cnt
-        exponents[j + 1] = isodd(cnt)
-        if isone(remainder)
-            break
-        elseif remainder < pT * pT
-            early_exit_j = j
-            break
-        end
+    remainder, j, status = _tf_scan!(abs(gx), 1, ctx, pos0, offset1, offset2, exponents, full_exp)
+    if status == -1
+        # A BigInt g(x) usually fits Int128 after its first few small factors; finish there.
+        remainder, j, status = _tf_scan!(Int128(remainder), j, ctx, pos0, offset1, offset2,
+                                         exponents, full_exp)
     end
+    early_exit_j = status > 0 ? status : fb_size + 1
 
     # Handle early exit: remainder has at most one prime factor
     if early_exit_j <= fb_size && !isone(remainder)
@@ -286,7 +296,7 @@ Returns a SmoothRelation or nothing.
         if idx <= fb_size && fb[idx] == rem_int
             full_exp[idx + 1] += Int32(1)
             exponents[idx + 1] ⊻= true
-            remainder = one(T)
+            remainder = one(remainder)
         end
     end
 
@@ -296,11 +306,11 @@ Returns a SmoothRelation or nothing.
 
     # A relation is kept rarely enough that promoting ax+b to a BigInt here costs nothing.
     if isone(remainder)
-        return SmoothRelation(mod(BigInt(ax_b), n_orig), copy(exponents), copy(full_exp), a_indices, 0, 0)
+        return SmoothRelation(mod(BigInt(ax_b), n_orig), copy(exponents), copy(full_exp), a_indices, 0, 0, Int[])
     elseif remainder <= large_prime_bound && remainder > 1
         lp = Int(remainder)
         if isprime(lp)
-            return SmoothRelation(mod(BigInt(ax_b), n_orig), copy(exponents), copy(full_exp), a_indices, lp, 0)
+            return SmoothRelation(mod(BigInt(ax_b), n_orig), copy(exponents), copy(full_exp), a_indices, lp, 0, Int[])
         end
     elseif remainder <= dlp_bound_sq && remainder > 1 && !isprime(Int(remainder))
         # Double large prime: split the composite remainder, which is ≤ dlp_bound_sq and
@@ -311,7 +321,10 @@ Returns a SmoothRelation or nothing.
         p1 = Int(min(f, div(r, f)))
         p2 = Int(max(f, div(r, f)))
         if p1 > 1 && p2 > 1 && p1 <= dlp_bound && p2 <= dlp_bound && isprime(p1) && isprime(p2)
-            return SmoothRelation(mod(BigInt(ax_b), n_orig), copy(exponents), copy(full_exp), a_indices, p1, p2)
+            axb = mod(BigInt(ax_b), n_orig)
+            # p² is already a square, so the relation is full as it stands
+            p1 == p2 && return SmoothRelation(axb, copy(exponents), copy(full_exp), a_indices, 0, 0, [p1])
+            return SmoothRelation(axb, copy(exponents), copy(full_exp), a_indices, p1, p2, Int[])
         end
     end
 
@@ -319,36 +332,18 @@ Returns a SmoothRelation or nothing.
 end
 
 """
-Combine two partial relations sharing a large prime `shared_lp`.
-The shared LP cancels (appears with even exponent in the product).
-Returns a relation with remaining LPs (0, 1, or 2).
+Combine relation `r` with `single`, whose only unfactored prime is `shared_lp`, also a
+large prime of `r`. The shared prime squares; `r`'s other large prime, if any, remains.
 """
-function _combine_partials(r1::SmoothRelation, r2::SmoothRelation,
-                           shared_lp::Int, ctx::MPQSContext)::Union{SmoothRelation, Nothing}
-    combined_exp = r1.exponents .⊻ r2.exponents
-    combined_full = r1.full_exp .+ r2.full_exp
-    combined_a_indices = vcat(r1.a_indices, r2.a_indices)
-    combined_axb = mod(r1.ax_plus_b * r2.ax_plus_b, ctx.n_orig)
-
-    # Collect remaining LPs (those that aren't the shared one)
-    remaining = Int[]
-    for lp in (r1.large_prime, r1.large_prime2, r2.large_prime, r2.large_prime2)
-        lp == 0 && continue
-        lp == shared_lp && continue
-        push!(remaining, lp)
-    end
-
-    # The shared LP appears in both relations, so its product is lp^2 (even exponent).
-    # We track it for square root computation.
-    if isempty(remaining)
-        return SmoothRelation(combined_axb, combined_exp, combined_full,
-                              combined_a_indices, shared_lp, 0)
-    elseif length(remaining) == 1
-        return SmoothRelation(combined_axb, combined_exp, combined_full,
-                              combined_a_indices, shared_lp, remaining[1])
-    end
-    # Two or more remaining LPs — can't use directly as a full relation
-    return nothing
+function _combine_partials(r::SmoothRelation, single::SmoothRelation,
+                           shared_lp::Int, ctx::MPQSContext)::SmoothRelation
+    rest = r.large_prime == shared_lp ? r.large_prime2 : r.large_prime
+    return SmoothRelation(mod(r.ax_plus_b * single.ax_plus_b, ctx.n_orig),
+                          r.exponents .⊻ single.exponents,
+                          r.full_exp .+ single.full_exp,
+                          vcat(r.a_indices, single.a_indices),
+                          rest, 0,
+                          vcat(r.squared_lps, single.squared_lps, shared_lp))
 end
 
 """
@@ -431,15 +426,10 @@ function _extract_factor(n_orig::BigInt, kn::BigInt, k::Int,
         end
     end
 
-    # Include large prime contributions from combined partial relations.
-    # Each shared LP appears with even exponent (lp^2), contributing one lp to y.
+    # Each squared large prime appears as lp², contributing one lp to y.
     for idx in dependency
-        r = relations[idx]
-        if r.large_prime > 0
-            y = mod(y * BigInt(r.large_prime), n_orig)
-        end
-        if r.large_prime2 > 0
-            y = mod(y * BigInt(r.large_prime2), n_orig)
+        for lp in relations[idx].squared_lps
+            y = mod(y * BigInt(lp), n_orig)
         end
     end
 
@@ -641,7 +631,7 @@ value underflowed (>= 0x80), indicating sufficient factorization over the factor
 function _siqs_collect!(a::T, b::T, c::T, a_factors::Vector{Int}, ctx::MPQSContext,
                         sieve::Vector{UInt8}, offset1::Vector{Int}, offset2::Vector{Int},
                         relations::Vector{SmoothRelation},
-                        partial_relations::Dict{Int, SmoothRelation},
+                        partial_relations::PartialPool,
                         M::Int, large_prime_bound::Int, dlp_bound::Int, dlp_bound_sq::Int,
                         tf_exponents::BitVector, tf_full_exp::Vector{Int32}) where {T<:Integer}
     sieve_len = length(sieve)
@@ -679,7 +669,7 @@ Process a single sieve candidate at position `i`.
                              a_factors::Vector{Int},
                              tf_exponents::BitVector, tf_full_exp::Vector{Int32},
                              relations::Vector{SmoothRelation},
-                             partial_relations::Dict{Int, SmoothRelation}) where {T<:Integer}
+                             partial_relations::PartialPool) where {T<:Integer}
     x = T(i - M - 1)
     # g(x) = Q(x)/a by Horner. Evaluating g directly keeps every intermediate at g's
     # width; forming Q(x) = (ax+b)² - kn would need twice that.
@@ -699,50 +689,41 @@ end
 
 """
 File a relation: smooth ones go into the pool, partials are combined with a stored
-relation sharing a large prime, or parked to wait for one.
-
-`large_prime` reads two ways, which is why the checks below are asymmetric: on a
-fresh relation it is an unfactored prime, so the relation is unusable; on one from
-`_combine_partials` it cancelled to a square, so only `large_prime2` matters.
+single-large-prime relation sharing a large prime, or parked to wait for one.
 """
 function _store_relation!(relation::SmoothRelation,
                           relations::Vector{SmoothRelation},
-                          partial_relations::Dict{Int, SmoothRelation},
-                          ctx::MPQSContext)
+                          pool::PartialPool, ctx::MPQSContext)
     lp1, lp2 = relation.large_prime, relation.large_prime2
     if lp1 == 0
         push!(relations, relation)
-        return
-    end
-
-    key = haskey(partial_relations, lp1) ? lp1 :
-          (lp2 != 0 && haskey(partial_relations, lp2)) ? lp2 : 0
-    if key == 0
-        partial_relations[lp1] = relation
-        return
-    end
-
-    other = partial_relations[key]
-    delete!(partial_relations, key)
-    combined = _combine_partials(relation, other, key, ctx)
-    combined === nothing && return
-
-    if combined.large_prime2 == 0
-        push!(relations, combined)
-        return
-    end
-
-    # One large prime still unpaired: chain it once more, or park it.
-    rest = combined.large_prime2
-    if haskey(partial_relations, rest)
-        other2 = partial_relations[rest]
-        delete!(partial_relations, rest)
-        combined2 = _combine_partials(combined, other2, rest, ctx)
-        if combined2 !== nothing && combined2.large_prime2 == 0
-            push!(relations, combined2)
+    elseif lp2 == 0
+        other = get(pool.single, lp1, nothing)
+        if other !== nothing
+            push!(relations, _combine_partials(relation, other, lp1, ctx))
+            return
         end
+        pool.single[lp1] = relation
+        # Double-large-prime relations parked on lp1 now reduce to their other prime.
+        # Drained one at a time: the recursion can consume entries of this list too.
+        ws = get(pool.waiting, lp1, nothing)
+        ws === nothing && return
+        while !isempty(ws)
+            w = pop!(ws)
+            rest = w.large_prime == lp1 ? w.large_prime2 : w.large_prime
+            haskey(pool.waiting, rest) && filter!(x -> x !== w, pool.waiting[rest])
+            _store_relation!(_combine_partials(w, relation, lp1, ctx), relations, pool, ctx)
+        end
+        delete!(pool.waiting, lp1)
     else
-        partial_relations[rest] = combined
+        key = haskey(pool.single, lp1) ? lp1 : haskey(pool.single, lp2) ? lp2 : 0
+        if key == 0
+            push!(get!(Vector{SmoothRelation}, pool.waiting, lp1), relation)
+            push!(get!(Vector{SmoothRelation}, pool.waiting, lp2), relation)
+        else
+            _store_relation!(_combine_partials(relation, pool.single[key], key, ctx),
+                             relations, pool, ctx)
+        end
     end
 end
 
@@ -778,10 +759,11 @@ function _mpqs_factor(::Type{T}, n::BigInt, k::Int, kn::BigInt,
     factor_base, sqrt_kn_mod, log_primes = _build_factor_base(kn, fb_size_target)
     actual_fb_size = length(factor_base)
 
-    ctx = MPQSContext(kn, n, factor_base, actual_fb_size, sqrt_kn_mod, sieve_interval)
+    fb_magic = UInt64[div(typemax(UInt64), p) + 1 for p in factor_base]
+    ctx = MPQSContext(kn, n, factor_base, actual_fb_size, sqrt_kn_mod, sieve_interval, fb_magic)
 
     relations = SmoothRelation[]
-    partial_relations = Dict{Int, SmoothRelation}()
+    partial_relations = PartialPool()
     used_a_sets = Set{Vector{Int}}()
     target_relations = actual_fb_size + 50
 
@@ -807,8 +789,7 @@ function _mpqs_factor(::Type{T}, n::BigInt, k::Int, kn::BigInt,
 
     # Skip small primes in sieve (they hit too many positions relative to their
     # log contribution). They are still checked during trial factoring.
-    # Ref: skip primes < 2^4 when nbits < 90, < 2^5 when 90-120, < 2^6 when > 120
-    skip_limit = nbits > 120 ? 512 : (nbits > 90 ? 256 : (nbits > 78 ? 128 : 32))
+    skip_limit = nbits > 120 ? 512 : (nbits > 90 ? 256 : 128)
     sieve_start_idx = 1
     while sieve_start_idx <= actual_fb_size && factor_base[sieve_start_idx] < skip_limit
         sieve_start_idx += 1
@@ -885,7 +866,9 @@ function _mpqs_factor(::Type{T}, n::BigInt, k::Int, kn::BigInt,
             flip_bit = trailing_zeros(gray_prev ⊻ gray_curr) + 1
 
             forward = (gray_curr >> (flip_bit - 1)) & 1 == 1
-            b = mod(forward ? b - 2 * B_comps[flip_bit] : b + 2 * B_comps[flip_bit], a)
+            # No reduction mod a: _shift_roots! assumes b moved by exactly ∓2B, and a wrap
+            # by ±a would turn g(x) into g(x ± 1), off by one from every shifted root.
+            b = forward ? b - 2 * B_comps[flip_bit] : b + 2 * B_comps[flip_bit]
             _shift_roots!(offset1, offset2, B_delta[flip_bit], inv_a,
                           factor_base, actual_fb_size, forward)
 
