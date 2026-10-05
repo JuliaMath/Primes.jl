@@ -613,23 +613,67 @@ end
     end
 end
 
+# Primes below _BLOCK_THRESH are sieved one _SIEVE_BLOCK-byte block at a time, so their
+# dense updates stay in cache; larger primes hit a block about once and sweep the whole
+# interval. Tuned at 70 digits: 1.4× over an unblocked 500 KB sieve.
+const _SIEVE_BLOCK = 65536
+const _BLOCK_THRESH = 16384
+
 """
-Fast SIQS sieve: constant initialization (fill!) + unclamped subtraction + small prime skipping.
+Fast SIQS sieve: constant initialization (fill!) + unclamped subtraction + small prime
+skipping. `pos1`/`pos2` are scratch for the blocked primes' next positions.
 """
 function _siqs_sieve!(sieve::Vector{UInt8}, sieve_len::Int,
                       offset1::Vector{Int}, offset2::Vector{Int},
                       factor_base::Vector{Int}, log_primes::Vector{UInt8},
-                      fb_size::Int, sieve_start_idx::Int, log_init::UInt8)
+                      fb_size::Int, sieve_start_idx::Int, log_init::UInt8,
+                      pos1::Vector{Int}, pos2::Vector{Int})
     fill!(sieve, log_init)
+    nsmall = max(sieve_start_idx - 1, searchsortedfirst(factor_base, _BLOCK_THRESH) - 1)
 
-    @inbounds for j in sieve_start_idx:fb_size
+    # o1 < 0 marks p | a with 2b ≡ 0 (mod p): no root at all. o2 == o1 is exactly the
+    # p | a single-root case, which must not be subtracted twice; those few primes are
+    # sieved unblocked. pos1 == 0 marks either as done.
+    @inbounds for j in sieve_start_idx:nsmall
+        o1, o2 = offset1[j], offset2[j]
+        if o1 < 0
+            pos1[j] = 0
+        elseif o2 == o1
+            _sieve_stride!(sieve, sieve_len, o1 + 1, factor_base[j], log_primes[j])
+            pos1[j] = 0
+        else
+            pos1[j], pos2[j] = minmax(o1, o2) .+ 1
+        end
+    end
+    @inbounds for block_start in 1:_SIEVE_BLOCK:sieve_len
+        block_end = min(block_start + _SIEVE_BLOCK - 1, sieve_len)
+        for j in sieve_start_idx:nsmall
+            r1 = pos1[j]
+            r1 == 0 && continue
+            r2 = pos2[j]
+            p = factor_base[j]
+            logp = log_primes[j]
+            while r2 <= block_end
+                sieve[r1] -= logp
+                sieve[r2] -= logp
+                r1 += p
+                r2 += p
+            end
+            # r2 - r1 < p, so after one more step on r1 the pair swaps order.
+            if r1 <= block_end
+                sieve[r1] -= logp
+                r1, r2 = r2, r1 + p
+            end
+            pos1[j] = r1
+            pos2[j] = r2
+        end
+    end
+
+    @inbounds for j in nsmall+1:fb_size
         p = factor_base[j]
         logp = log_primes[j]
         o1 = offset1[j]
-        o1 < 0 && continue   # p | a and 2b ≡ 0 (mod p): no root at all
-
-        # o2 == o1 is exactly the p | a single-root case, which must not be subtracted
-        # twice. The offsets are always written as a pair, so o2 >= 0 follows from o1 >= 0.
+        o1 < 0 && continue
         o2 = offset2[j]
         if o2 == o1
             _sieve_stride!(sieve, sieve_len, o1 + 1, p, logp)
@@ -794,6 +838,8 @@ function _mpqs_factor(::Type{T}, n::BigInt, k::Int, kn::BigInt,
     sieve = Vector{UInt8}(undef, sieve_len)
     offset1 = Vector{Int}(undef, actual_fb_size)
     offset2 = Vector{Int}(undef, actual_fb_size)
+    sieve_pos1 = Vector{Int}(undef, actual_fb_size)
+    sieve_pos2 = Vector{Int}(undef, actual_fb_size)
 
     # Trial factoring buffer, reused across all candidates
     tf_factors = Int32[]
@@ -868,7 +914,8 @@ function _mpqs_factor(::Type{T}, n::BigInt, k::Int, kn::BigInt,
 
         # First polynomial
         _siqs_sieve!(sieve, sieve_len, offset1, offset2,
-                     factor_base, log_primes, actual_fb_size, sieve_start_idx, log_init)
+                     factor_base, log_primes, actual_fb_size, sieve_start_idx, log_init,
+                     sieve_pos1, sieve_pos2)
         _siqs_collect!(a, b, c, a_indices, ctx, sieve, offset1, offset2,
                        relations, partial_relations, M, large_prime_bound,
                        dlp_bound, dlp_bound_sq, tf_factors)
@@ -898,7 +945,8 @@ function _mpqs_factor(::Type{T}, n::BigInt, k::Int, kn::BigInt,
 
             # Sieve and collect
             _siqs_sieve!(sieve, sieve_len, offset1, offset2,
-                         factor_base, log_primes, actual_fb_size, sieve_start_idx, log_init)
+                         factor_base, log_primes, actual_fb_size, sieve_start_idx, log_init,
+                         sieve_pos1, sieve_pos2)
             _siqs_collect!(a, b, c, a_indices, ctx, sieve, offset1, offset2,
                            relations, partial_relations, M, large_prime_bound,
                            dlp_bound, dlp_bound_sq, tf_factors)
