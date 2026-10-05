@@ -464,14 +464,16 @@ function _generate_siqs_a(::Type{T}, ctx::MPQSContext, used_a_sets::Set{Vector{I
 
     # Sieve yield falls off sharply either side of target_a, so `a` is built to hit it:
     # draw s-1 primes near target_a^(1/s), then let the factor base pick the last.
-    # s is the smallest the factor base allows, keeping `a`'s primes large — larger s
-    # gives more polynomials per setup but spends smaller primes, and a prime dividing
-    # `a` sieves at one root instead of two.
+    # Each `a` costs a pass of invmods and s·fb reductions but serves 2^(s-1)
+    # polynomials, so s is set to make its primes small (near 2000): that setup cost
+    # dwarfs the lost sieve root of each prime dividing `a`. Small factor bases end
+    # below 2000, so s is also kept large enough for its primes to fit well inside.
     log_target = log(Float64(target_a))
-    s = max(2, ceil(Int, log_target / log(Float64(fb[fb_size]))))
-    center = searchsortedfirst(fb, round(Int, exp(log_target / s)))
-    lo = clamp(center - fb_size ÷ 8, 2, fb_size - s + 1)
-    hi = clamp(center + fb_size ÷ 8, lo + s - 1, fb_size)
+    s = max(2, round(Int, log_target / log(2000.0)),
+            ceil(Int, log_target / log(fb[fb_size] / 2)))
+    center = exp(log_target / s)
+    lo = clamp(searchsortedfirst(fb, floor(Int, center / 1.5)), 2, fb_size - s + 1)
+    hi = min(max(searchsortedlast(fb, ceil(Int, center * 1.5)), lo + 4s), fb_size)
 
     for _ in 1:20
         indices = unique(sort(rand(lo:hi, s - 1)))
@@ -502,6 +504,12 @@ function _crt_components(::Type{T}, a::BigInt, indices::Vector{Int},
     end
 end
 
+# x mod p in [0, p). `mod(::BigInt, ::Int)` promotes p to a fresh BigInt on every call,
+# which dominated per-polynomial setup once the working type is BigInt.
+_modp(x::Integer, p::Int) = Int(mod(x, p))
+_modp(x::BigInt, p::Int) =
+    Int(ccall((:__gmpz_fdiv_ui, Base.GMP.libgmp), Culong, (Ref{BigInt}, Culong), x, p))
+
 """
 Compute initial sieve root offsets from b, once per a-value.
 offset1[j], offset2[j] ∈ [0, p-1]: sieve positions are offset+1, offset+1+p, ...
@@ -519,7 +527,7 @@ function _compute_siqs_roots!(offset1::Vector{Int}, offset2::Vector{Int},
             _set_single_root!(offset1, offset2, j, p, b, c, M)
         else
             sqr = sqrt_kn_mod[j]
-            b_mod_p = Int(mod(b, p))
+            b_mod_p = _modp(b, p)
             ai = inv_a[j]
             r1 = mod((sqr - b_mod_p) * ai, p)
             r2 = mod((-sqr - b_mod_p) * ai, p)
@@ -533,31 +541,23 @@ end
 # -1 in both offsets marks "no root at all", when 2b vanishes mod p as well.
 @inline function _set_single_root!(offset1::Vector{Int}, offset2::Vector{Int},
                                    j::Int, p::Int, b::Integer, c::Integer, M::Int)
-    b2 = mod(2 * Int(mod(b, p)), p)
+    b2 = mod(2 * _modp(b, p), p)
     if b2 == 0
         offset1[j] = -1
         offset2[j] = -1
     else
-        o = mod(mod(-Int(mod(c, p)) * invmod(b2, p), p) + M, p)
+        o = mod(mod(-_modp(c, p) * invmod(b2, p), p) + M, p)
         offset1[j] = o
         offset2[j] = o
     end
 end
 
-# inv(a) mod p for every factor base prime, taken from a's known factorization so no
-# division by a BigInt is needed. 0 marks the primes that divide a.
+# inv(a) mod p for every factor base prime. 0 marks the primes that divide a.
 function _precompute_inv_a!(inv_a::Vector{Int}, factor_base::Vector{Int},
-                            fb_size::Int, a_indices::Vector{Int})
+                            fb_size::Int, a::Integer)
     @inbounds for j in 1:fb_size
         p = factor_base[j]
-        a_mod_p = 1
-        for idx in a_indices
-            if factor_base[idx] == p
-                a_mod_p = 0
-                break
-            end
-            a_mod_p = mod(a_mod_p * mod(factor_base[idx], p), p)
-        end
+        a_mod_p = _modp(a, p)
         inv_a[j] = a_mod_p == 0 ? 0 : invmod(a_mod_p, p)
     end
 end
@@ -570,7 +570,7 @@ function _precompute_b_deltas!(B_delta::Vector{Vector{Int}}, B_comps::Vector,
         delta = B_delta[v]
         @inbounds for j in 1:fb_size
             p = factor_base[j]
-            delta[j] = mod(2 * Int(mod(Bv, p)) * inv_a[j], p)
+            delta[j] = mod(2 * _modp(Bv, p) * inv_a[j], p)
         end
     end
 end
@@ -616,11 +616,22 @@ function _siqs_sieve!(sieve::Vector{UInt8}, sieve_len::Int,
         o1 = offset1[j]
         o1 < 0 && continue   # p | a and 2b ≡ 0 (mod p): no root at all
 
-        _sieve_stride!(sieve, sieve_len, o1 + 1, p, logp)
         # o2 == o1 is exactly the p | a single-root case, which must not be subtracted
         # twice. The offsets are always written as a pair, so o2 >= 0 follows from o1 >= 0.
         o2 = offset2[j]
-        o2 == o1 || _sieve_stride!(sieve, sieve_len, o2 + 1, p, logp)
+        if o2 == o1
+            _sieve_stride!(sieve, sieve_len, o1 + 1, p, logp)
+            continue
+        end
+        # Both roots in one loop: two independent update chains overlap in the pipeline.
+        r1, r2 = minmax(o1, o2) .+ 1
+        while r2 <= sieve_len
+            sieve[r1] -= logp
+            sieve[r2] -= logp
+            r1 += p
+            r2 += p
+        end
+        r1 <= sieve_len && (sieve[r1] -= logp)
     end
 end
 
@@ -831,7 +842,7 @@ function _mpqs_factor(::Type{T}, n::BigInt, k::Int, kn::BigInt,
             push!(B_delta, Vector{Int}(undef, actual_fb_size))
         end
 
-        _precompute_inv_a!(inv_a, factor_base, actual_fb_size, a_indices)
+        _precompute_inv_a!(inv_a, factor_base, actual_fb_size, a)
         _precompute_b_deltas!(B_delta, B_comps, inv_a, factor_base, actual_fb_size)
 
         # Initial b (all positive CRT signs)
