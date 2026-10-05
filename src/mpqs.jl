@@ -64,13 +64,13 @@ const _MPQS_PARAMS = [
     (digits=50, fb_size=1900,  sieve_interval=66000),
     (digits=55, fb_size=2900,  sieve_interval=66000),
     (digits=58, fb_size=3700,  sieve_interval=95000),
-    (digits=60, fb_size=5500,  sieve_interval=250000),
-    (digits=62, fb_size=6200,  sieve_interval=250000),
-    (digits=65, fb_size=7500,  sieve_interval=250000),
-    (digits=68, fb_size=9000,  sieve_interval=250000),
-    (digits=70, fb_size=10000, sieve_interval=250000),
-    (digits=73, fb_size=13000, sieve_interval=250000),
-    (digits=76, fb_size=16000, sieve_interval=250000),
+    (digits=60, fb_size=5500,  sieve_interval=100000),
+    (digits=62, fb_size=6200,  sieve_interval=130000),
+    (digits=65, fb_size=7500,  sieve_interval=130000),
+    (digits=68, fb_size=9000,  sieve_interval=130000),
+    (digits=70, fb_size=10000, sieve_interval=130000),
+    (digits=73, fb_size=13000, sieve_interval=130000),
+    (digits=76, fb_size=16000, sieve_interval=130000),
 ]
 
 """
