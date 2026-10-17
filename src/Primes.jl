@@ -8,6 +8,9 @@ using Base: BitSigned
 using Base.Checked: checked_neg
 using IntegerMathUtils
 
+# `Base.GMP.libgmp` was added in Julia 1.9
+const libgmp = isdefined(Base.GMP, :libgmp) ? Base.GMP.libgmp : :libgmp
+
 export isprime, primes, primesmask, eachprime, factor, eachfactor, divisors, ismersenneprime, isrieselprime,
        nextprime, nextprimes, prevprime, prevprimes, prime, prodfactors, radical, totient
 
@@ -725,9 +728,9 @@ sub(n::Integer, x::Int) = Base.checked_sub(n, oftype(n, x))
 # modify a BigInt in-place
 function add_!(n::BigInt, x::Int)
     if x < 0
-        ccall((:__gmpz_sub_ui, :libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), n, n, -x)
+        ccall((:__gmpz_sub_ui, libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), n, n, -x)
     else
-        ccall((:__gmpz_add_ui, :libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), n, n, x)
+        ccall((:__gmpz_add_ui, libgmp), Cvoid, (Ref{BigInt}, Ref{BigInt}, Culong), n, n, x)
     end
     n
 end
